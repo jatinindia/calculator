@@ -1,6 +1,6 @@
 import { evaluate, formatNumber, toExpressionString, compileFunction, CalcError } from './calc.js';
 import { pressKey, backspace, seedFromResult, insertValue, pressKeyAt, backspaceAt, insertValueAt, snapCursor } from './editor.js';
-import { CATEGORIES, findCategory, findUnit, convertUnit, convertCurrency, parseRatesResponse, searchOptions, sanitizeRates } from './convert.js';
+import { CATEGORIES, findCategory, findUnit, convertUnit, convertCurrency, parseRatesResponse, searchOptions, sanitizeRates, allUnitOptions } from './convert.js';
 import { filterHistory, setLabel } from './history.js';
 import { TOOLS } from './tools.js';
 import { createGraphView } from './graph-view.js';
@@ -67,6 +67,10 @@ const DEFAULT_UNITS = /** @type {Readonly<Record<string, { from: string, to: str
   pressure: { from: 'bar', to: 'psi' },
   energy: { from: 'kcal', to: 'kj' },
   angle: { from: 'deg', to: 'rad' },
+  force: { from: 'n', to: 'kgf' },
+  fuel: { from: 'kml', to: 'l100km' },
+  numbers: { from: 'lakh', to: 'million' },
+  power: { from: 'kw', to: 'hp' },
 });
 const currencyNames = new Intl.DisplayNames(['en'], { type: 'currency' });
 const ALT_LABELS = /** @type {Readonly<Record<string, string>>} */ ({
@@ -479,14 +483,17 @@ function updateUnits(state, change) {
 }
 
 /**
- * Pick a unit for one side; picking the unit already on the other side swaps them.
+ * Pick a unit for one side, switching category if it came from a search of all units.
+ * Picking the unit already on the other side swaps them.
  * @param {State} state
+ * @param {string} category
  * @param {'from' | 'to'} side
  * @param {string} id
  * @returns {State}
  */
-function chooseUnit(state, side, id) {
-  const next = updateUnits(state, (u) => {
+function chooseUnit(state, category, side, id) {
+  const inCategory = { ...state, conv: { ...state.conv, category } };
+  const next = updateUnits(inCategory, (u) => {
     const other = side === 'from' ? 'to' : 'from';
     return u[other] === id ? { [side]: id, [other]: u[side] } : { ...u, [side]: id };
   });
@@ -501,7 +508,10 @@ function chooseUnit(state, side, id) {
  */
 function convertAmount(state, amount) {
   const { from, to } = activeUnits(state.conv);
-  if (state.conv.category !== CURRENCY) return convertUnit(amount, state.conv.category, from, to);
+  if (state.conv.category !== CURRENCY) {
+    const value = convertUnit(amount, state.conv.category, from, to);
+    return Number.isFinite(value) ? value : null; // e.g. 0 km/L has no L/100 km
+  }
   if (state.rates === null || !Object.hasOwn(state.rates.rates, from) || !Object.hasOwn(state.rates.rates, to)) return null;
   return convertCurrency(amount, from, to, state.rates.rates);
 }
@@ -711,18 +721,29 @@ function unitLabel(state, id) {
 }
 
 /**
+ * Currencies the picker can offer (just the selected pair until rates have loaded).
+ * @param {State} state
+ * @returns {PickerOption[]}
+ */
+function currencyOptions(state) {
+  const { from, to } = state.conv.units[CURRENCY];
+  const codes = state.rates === null ? [...new Set([from, to])] : Object.keys(state.rates.rates).sort();
+  return codes.map((code) => ({ id: code, code, name: currencyNames.of(code) ?? code, category: CURRENCY }));
+}
+
+/**
  * Everything the unit picker can offer for the current category.
  * @param {State} state
  * @returns {PickerOption[]}
  */
 function unitOptions(state) {
-  if (state.conv.category !== CURRENCY) {
-    return findCategory(state.conv.category).units.map((u) => ({ id: u.id, code: u.symbol, name: u.name }));
-  }
-  const { from, to } = activeUnits(state.conv);
-  const codes = state.rates === null ? [...new Set([from, to])] : Object.keys(state.rates.rates).sort();
-  return codes.map((code) => ({ id: code, code, name: currencyNames.of(code) ?? code }));
+  if (state.conv.category === CURRENCY) return currencyOptions(state);
+  const category = state.conv.category;
+  return findCategory(category).units.map((u) => ({ id: u.id, code: u.symbol, name: u.name, category }));
 }
+
+/** @param {string} categoryId */
+const categoryName = (categoryId) => (categoryId === CURRENCY ? 'Currency' : findCategory(categoryId).name);
 
 /**
  * @param {string | null} title
@@ -741,6 +762,7 @@ function pickerSection(title, options, selected) {
     const btn = document.createElement('button');
     btn.className = 'picker-item';
     btn.dataset.id = option.id;
+    btn.dataset.category = option.category;
     btn.classList.toggle('selected', option.id === selected);
     btn.append(
       Object.assign(document.createElement('span'), { className: 'picker-code', textContent: option.code }),
@@ -757,13 +779,28 @@ function renderPicker(state) {
   if (state.picker === null) return;
   el.pickerTitle.textContent = state.picker === 'from' ? 'Convert from' : 'Convert to';
   const selected = activeUnits(state.conv)[state.picker];
-  const options = unitOptions(state);
-  const matches = searchOptions(options, state.pickerQuery);
-  const browsingCurrencies = state.conv.category === CURRENCY && state.rates !== null && state.pickerQuery.trim() === '';
-  const popular = POPULAR_CURRENCIES.flatMap((code) => options.filter((o) => o.id === code));
-  el.pickerList.replaceChildren(...(browsingCurrencies
-    ? [...pickerSection('Popular', popular, selected), ...pickerSection('All currencies', matches, selected)]
-    : pickerSection(null, matches, selected)));
+  const query = state.pickerQuery.trim();
+  /** @type {readonly PickerOption[]} */
+  let matches;
+  if (query === '') {
+    // Browsing: just this category.
+    const options = unitOptions(state);
+    matches = options;
+    const browsingCurrencies = state.conv.category === CURRENCY && state.rates !== null;
+    const popular = POPULAR_CURRENCIES.flatMap((code) => options.filter((o) => o.id === code));
+    el.pickerList.replaceChildren(...(browsingCurrencies
+      ? [...pickerSection('Popular', popular, selected), ...pickerSection('All currencies', options, selected)]
+      : pickerSection(null, options, selected)));
+  } else {
+    // Searching: every category, the current one first, each under its own heading.
+    matches = searchOptions([...currencyOptions(state), ...allUnitOptions()], query);
+    const order = [...new Set([state.conv.category, CURRENCY, ...CATEGORIES.map((c) => c.id)])];
+    el.pickerList.replaceChildren(...order.flatMap((categoryId) => {
+      const inCategory = matches.filter((o) => o.category === categoryId);
+      if (inCategory.length === 0) return [];
+      return pickerSection(categoryName(categoryId), inCategory, categoryId === state.conv.category ? selected : '');
+    }));
+  }
   if (matches.length === 0) {
     el.pickerList.append(Object.assign(document.createElement('li'), {
       className: 'history-empty', textContent: `No matches for “${state.pickerQuery.trim()}”.`,
@@ -797,7 +834,7 @@ function convMetaText(state) {
   const { from, to } = activeUnits(state.conv);
   const rate = convertAmount(state, 1);
   if (state.conv.category !== CURRENCY) {
-    return `1 ${unitLabel(state, from).code} = ${formatNumber(/** @type {number} */ (rate))} ${unitLabel(state, to).code}`;
+    return `1 ${unitLabel(state, from).code} = ${rate === null ? '—' : formatNumber(rate)} ${unitLabel(state, to).code}`;
   }
   if (state.rates === null) {
     return state.ratesStatus.kind === 'error'
@@ -1473,7 +1510,8 @@ el.pickerList.addEventListener('click', (event) => {
   if (!item || state.picker === null) return;
   const side = state.picker;
   el.pickerSearch.blur();
-  dispatch((s) => chooseUnit(s, side, /** @type {string} */ (item.dataset.id)));
+  dispatch((s) => chooseUnit(s, /** @type {string} */ (item.dataset.category), side, /** @type {string} */ (item.dataset.id)));
+  if (needsRates(state)) void refreshRates(false);
 });
 el.swapBtn.addEventListener('click', () => dispatch((s) => updateUnits(s, (u) => ({ from: u.to, to: u.from }))));
 el.ratesRefreshBtn.addEventListener('click', () => void refreshRates(true));

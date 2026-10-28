@@ -402,10 +402,10 @@ svg {
 .unit-pick {
   position: relative;
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: minmax(0, auto) auto;
   align-items: center;
   column-gap: 6px;
-  max-width: 150px;
+  max-width: 58vw;
   padding: 8px 12px;
   text-align: left;
   border-radius: 14px;
@@ -422,7 +422,7 @@ svg {
   border-bottom: 2px solid var(--ink-soft);
   transform: translateY(-2px) rotate(45deg);
 }
-.unit-code { grid-row: 1; grid-column: 1; font-size: 17px; font-weight: 700; }
+.unit-code { grid-row: 1; grid-column: 1; font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .unit-name {
   grid-row: 2;
   grid-column: 1 / span 2;
@@ -754,16 +754,18 @@ svg {
 .picker-item {
   width: 100%;
   display: grid;
-  grid-template-columns: 64px 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto; /* full name, then short code beneath; tick on the right */
   align-items: center;
-  gap: 8px;
-  padding: 13px 20px;
+  column-gap: 8px;
+  row-gap: 2px;
+  padding: 11px 20px;
   text-align: left;
   border-bottom: 1px solid var(--line);
 }
 .picker-item:active { background: var(--key-util); }
-.picker-code { font-weight: 700; font-size: 16px; }
-.picker-name { color: var(--ink-soft); font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-name { grid-row: 1; grid-column: 1; font-size: 16px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-code { grid-row: 2; grid-column: 1; font-size: 13px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-item.selected::after { grid-row: 1 / span 2; grid-column: 2; }
 .picker-item.selected .picker-code,
 .picker-item.selected .picker-name { color: var(--key-op-ink); }
 .picker-item.selected::after {

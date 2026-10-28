@@ -43,8 +43,34 @@ It opens full screen with its own icon, and keeps working with no internet conne
 
 ### Convert
 - **Currency:** about 160 currencies with daily rates. The last rates are saved for use offline, and the screen shows how old they are.
-- **Units:** length, weight (including tola and carat), temperature, area, volume, speed, time, data, pressure, energy and angle.
-- Searchable lists for units and currencies, a swap button, and you can type sums (`12 × 3` feet).
+- **268 units in 15 categories:** angle, area, data, energy, force, fuel economy, length, numbers, power, pressure, speed, temperature, time, volume and weight.
+- **Search all units** from either unit button: type "kanal", "horsepower" or "assam" and pick from any category.
+- A swap button, and you can type sums (`12 × 3` feet).
+
+#### Indian and regional units
+Land units differ between states, sometimes between districts, so every variant is a separate unit named after its place. There's no single "bigha".
+
+| Region | Units |
+|---|---|
+| Punjab, Haryana | killa (1 acre) = 8 kanal; kanal = 20 marla = 5,445 ft²; marla = 9 sarsai = 272.25 ft²; bigha = 20 biswa = 21,780 ft²; biswa = 20 biswansi |
+| Himachal Pradesh | bigha 8,712 ft² |
+| Uttarakhand | bigha (hills) 6,806.25 ft², bigha (plains) 17,424 ft², nali 2,160 ft² |
+| Rajasthan | bigha pucca 27,225 ft², bigha kachha 17,424 ft² |
+| Gujarat | bigha 17,424 ft² |
+| Madhya Pradesh | bigha 12,000 ft² = 20 katha |
+| Uttar Pradesh | bigha (east, Lucknow) 27,225 ft²; bigha (west) 6,806.25 or 9,075 ft²; biswa 1,361.25 ft² |
+| Bihar | Patna and Arrah: bigha 27,225 ft² = 20 katha, katha = 20 dhur, dhur = 20 dhurki. Hajipur katha 1,901.25 ft²; Chhapra katha 1,742.4 ft²; Bettiah katha 3,267 ft² |
+| Jharkhand | Ranchi: bigha 14,400 ft² = 20 katha |
+| West Bengal | bigha 14,400 ft² = 20 katha; katha = 16 chatak |
+| Assam | pura = 4 bigha; bigha 14,400 ft² = 5 katha; katha = 20 lecha |
+| South and west India | guntha 1,089 ft²; cent and decimal 435.6 ft²; ground (Tamil Nadu) 2,400 ft²; kuncham 484 ft²; ankanam 72 ft²; gaj (square yard) |
+| Nepal | ropani = 16 aana = 64 paisa = 256 daam; bigha = 20 katha = 400 dhur |
+
+- **Weights** follow the 1833 British India standard: tola = 180 grains = 11.6638038 g; masha = tola ÷ 12; ratti = masha ÷ 8; chhatank = 5 tola; seer = 80 tola; maund = 40 seer. Quintal is 100 kg.
+- **Lengths:** gaj (yard), hath (18 in), karam (5½ ft, Punjab and Haryana).
+- **Numbers:** lakh, crore, arab, kharab, neel, padma and shankh, alongside million, billion and the rest.
+
+The values come from published conversion tables, mainly Wikipedia's [Bigha](https://en.wikipedia.org/wiki/Bigha) and [Katha](https://en.wikipedia.org/wiki/Katha_(unit)) articles and Indian housing and banking sites. Local practice can still differ, so check land records (jamabandi, khatiyan) before a transaction.
 
 ### Tools
 | Tool | What it does |
