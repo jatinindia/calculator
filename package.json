@@ -1,0 +1,14 @@
+{
+  "name": "calculator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "start": "python3 -m http.server 8080"
+  },
+  "description": "Calculator web app with history, unit and currency conversion, money tools and graphing.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

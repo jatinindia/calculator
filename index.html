@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Calculator</title>
+  <meta name="description" content="A fast calculator with scientific functions and saved history.">
+  <meta name="theme-color" content="#0d0e12" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f2ee" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Calculator">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <main class="calc" aria-label="Calculator">
+      <header class="topbar">
+        <button class="icon-btn" id="historyBtn" aria-label="Show history">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v4h4" /><path d="M12 7v5l3 2" /></svg>
+        </button>
+        <div class="tabs" role="tablist" aria-label="Mode">
+          <button class="tab" id="calcTab" role="tab" aria-selected="true">Calc</button>
+          <button class="tab" id="convTab" role="tab" aria-selected="false">Convert</button>
+          <button class="tab" id="toolsTab" role="tab" aria-selected="false">Tools</button>
+          <button class="tab" id="graphTab" role="tab" aria-selected="false">Graph</button>
+        </div>
+      </header>
+
+      <section class="display" id="display" aria-live="polite">
+        <span class="mem-badge" id="memBadge" hidden></span>
+        <div class="display-tools">
+          <button class="pill" id="angleBtn" aria-label="Toggle degrees or radians">DEG</button>
+          <button class="pill" id="sciBtn" aria-label="Toggle scientific keys" aria-pressed="false"><i>f</i>(x)</button>
+        </div>
+        <div class="expr-wrap"><div class="expr" id="expr"></div></div>
+        <button class="result" id="result" aria-label="Result, tap to copy"></button>
+      </section>
+
+      <section class="conv" id="conv" hidden>
+        <div class="chips" id="convChips" role="tablist" aria-label="Conversion type"></div>
+        <div class="conv-card">
+          <div class="conv-row">
+            <button class="unit-pick" id="fromPick" aria-label="Convert from">
+              <span class="unit-code" id="fromCode"></span>
+              <span class="unit-name" id="fromName"></span>
+            </button>
+            <div class="conv-value" id="fromValue"></div>
+          </div>
+          <button class="swap" id="swapBtn" aria-label="Swap units">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v15M4 8l4-4 4 4M16 20V5M12 16l4 4 4-4" /></svg>
+          </button>
+          <div class="conv-row">
+            <button class="unit-pick" id="toPick" aria-label="Convert to">
+              <span class="unit-code" id="toCode"></span>
+              <span class="unit-name" id="toName"></span>
+            </button>
+            <button class="conv-value out" id="toValue" aria-label="Converted value, tap to copy"></button>
+          </div>
+        </div>
+        <div class="conv-meta">
+          <span id="convMeta"></span>
+          <button class="text-btn small" id="ratesRefreshBtn" hidden>Refresh</button>
+        </div>
+        <a class="conv-credit" id="ratesCredit" href="https://www.exchangerate-api.com" target="_blank" rel="noopener" hidden>Rates by Exchange Rate API</a>
+      </section>
+
+      <section class="tools" id="tools" hidden>
+        <div class="chips" id="toolChips" role="tablist" aria-label="Tool"></div>
+        <div class="seg" id="toolModes" role="tablist" aria-label="Mode"></div>
+        <form class="tool-form" id="toolForm" autocomplete="off" novalidate></form>
+        <div class="tool-results" id="toolResults" aria-live="polite"></div>
+      </section>
+
+      <section class="graph" id="graph" hidden>
+        <div class="graph-canvas-wrap">
+          <canvas id="graphCanvas" aria-label="Graph of your functions"></canvas>
+          <button class="graph-reset" id="graphReset" aria-label="Reset view">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7" /><path d="M6 9.5V20h12V9.5" /></svg>
+          </button>
+        </div>
+        <p class="graph-readout" id="graphReadout"></p>
+        <div class="graph-keys" id="graphKeys" aria-label="Insert into formula"></div>
+        <div class="graph-fns" id="graphFns"></div>
+        <button class="text-btn small graph-add" id="graphAdd">+ Add function</button>
+      </section>
+
+      <section class="mem" id="mem">
+        <button class="key mk" data-key="mc">MC</button>
+        <button class="key mk" data-key="mr">MR</button>
+        <button class="key mk" data-key="m+">M+</button>
+        <button class="key mk" data-key="m−">M−</button>
+        <button class="key mk" data-key="ans">Ans</button>
+      </section>
+
+      <section class="sci" id="sci" hidden>
+        <button class="key fn" data-key="2nd" id="secondBtn">2nd</button>
+        <button class="key fn" data-key="sin" data-alt="asin">sin</button>
+        <button class="key fn" data-key="cos" data-alt="acos">cos</button>
+        <button class="key fn" data-key="tan" data-alt="atan">tan</button>
+        <button class="key fn" data-key="π">π</button>
+        <button class="key fn" data-key="square" data-alt="cube">x²</button>
+        <button class="key fn" data-key="^">xʸ</button>
+        <button class="key fn" data-key="√">√</button>
+        <button class="key fn" data-key="ln" data-alt="exp">ln</button>
+        <button class="key fn" data-key="log" data-alt="pow10">log</button>
+        <button class="key fn" data-key="!">x!</button>
+        <button class="key fn" data-key="e">e</button>
+        <button class="key fn" data-key="reciprocal">1/x</button>
+        <button class="key fn" data-key="neg" aria-label="Change sign">±</button>
+        <button class="key fn" data-key="mod" aria-label="Remainder">mod</button>
+      </section>
+
+      <section class="pad" id="pad">
+        <button class="key util" data-key="clear">AC</button>
+        <div class="split">
+          <button class="key util" data-key="(" aria-label="Open bracket (hold to wrap everything)">(</button>
+          <button class="key util" data-key=")" aria-label="Close bracket">)</button>
+        </div>
+        <button class="key util" data-key="%">%</button>
+        <button class="key op" data-key="÷">÷</button>
+        <button class="key num" data-key="7">7</button>
+        <button class="key num" data-key="8">8</button>
+        <button class="key num" data-key="9">9</button>
+        <button class="key op" data-key="×">×</button>
+        <button class="key num" data-key="4">4</button>
+        <button class="key num" data-key="5">5</button>
+        <button class="key num" data-key="6">6</button>
+        <button class="key op" data-key="−">−</button>
+        <button class="key num" data-key="1">1</button>
+        <button class="key num" data-key="2">2</button>
+        <button class="key num" data-key="3">3</button>
+        <button class="key op" data-key="+">+</button>
+        <button class="key num" data-key="0">0</button>
+        <button class="key num" data-key=".">.</button>
+        <button class="key num" data-key="back" aria-label="Delete">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h11v14H9l-6-7z" /><path d="M12.5 9.5l5 5M17.5 9.5l-5 5" /></svg>
+        </button>
+        <button class="key eq" data-key="equals">=</button>
+      </section>
+    </main>
+
+    <aside class="history" id="history" aria-label="History">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <header class="history-head">
+        <h2>History</h2>
+        <div class="history-actions">
+          <button class="text-btn" id="clearHistoryBtn">Clear</button>
+          <button class="text-btn close" id="closeHistoryBtn">Done</button>
+        </div>
+      </header>
+      <label class="history-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4.2-4.2" /></svg>
+        <input id="historySearch" type="search" placeholder="Search labels, sums or answers" autocomplete="off" aria-label="Search history">
+      </label>
+      <ol class="history-list" id="historyList"></ol>
+      <p class="history-empty" id="historyEmpty">Your calculations will appear here.</p>
+    </aside>
+    <div class="picker" id="picker" role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <header class="history-head">
+        <h2 id="pickerTitle">Convert from</h2>
+        <button class="text-btn close" id="pickerClose">Done</button>
+      </header>
+      <label class="history-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4.2-4.2" /></svg>
+        <input id="pickerSearch" type="search" placeholder="Search" autocomplete="off" aria-label="Search units">
+      </label>
+      <ul class="picker-list" id="pickerList"></ul>
+    </div>
+    <div class="scrim" id="scrim"></div>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+</body>
+</html>
