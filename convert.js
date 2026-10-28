@@ -189,11 +189,10 @@ export function convertUnit(value, categoryId, fromId, toId) {
  * @returns {number}
  */
 export function convertCurrency(value, from, to, rates) {
-  const fromRate = rates[from];
-  const toRate = rates[to];
-  if (fromRate === undefined) throw new Error(`No rate for ${from}`);
-  if (toRate === undefined) throw new Error(`No rate for ${to}`);
-  return from === to ? value : (value / fromRate) * toRate;
+  // Own properties only, so names like "toString" can't resolve to Object.prototype members.
+  if (!Object.hasOwn(rates, from)) throw new Error(`No rate for ${from}`);
+  if (!Object.hasOwn(rates, to)) throw new Error(`No rate for ${to}`);
+  return from === to ? value : (value / rates[from]) * rates[to];
 }
 
 /**
@@ -206,17 +205,30 @@ export function parseRatesResponse(json) {
   if (obj.result !== 'success') {
     throw new Error(`Rates service returned an error: ${String(obj['error-type'] ?? JSON.stringify(json))}`);
   }
-  const rates = obj.rates;
-  const valid = typeof obj.base_code === 'string'
-    && typeof obj.time_last_update_unix === 'number'
-    && typeof rates === 'object' && rates !== null
-    && Object.values(rates).every((r) => typeof r === 'number' && r > 0);
+  const rates = sanitizeRates(obj.rates);
+  const valid = typeof obj.base_code === 'string' && typeof obj.time_last_update_unix === 'number' && rates !== null;
   if (!valid) throw new Error(`Unexpected rates response: ${JSON.stringify(json).slice(0, 200)}`);
   return {
     base: /** @type {string} */ (obj.base_code),
     updatedAt: /** @type {number} */ (obj.time_last_update_unix) * 1000,
-    rates: /** @type {Record<string, number>} */ (rates),
+    rates,
   };
+}
+
+const CURRENCY_CODE = /^[A-Z]{3}$/;
+
+/**
+ * Keep only three-letter currency codes. Returns null if there are none, or if any code
+ * has a rate that isn't a finite positive number (the data can't be trusted then).
+ * Used for both network responses and rates read back from storage.
+ * @param {unknown} value
+ * @returns {Record<string, number> | null}
+ */
+export function sanitizeRates(value) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const entries = Object.entries(value).filter(([code]) => CURRENCY_CODE.test(code));
+  const allValid = entries.every(([, rate]) => typeof rate === 'number' && Number.isFinite(rate) && rate > 0);
+  return entries.length > 0 && allValid ? Object.fromEntries(entries) : null;
 }
 
 /** @typedef {{ id: string, code: string, name: string }} PickerOption */

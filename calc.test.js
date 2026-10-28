@@ -125,3 +125,16 @@ test('bad formulas fail when compiled; x is not allowed in normal sums', () => {
   assert.throws(() => compileFunction('y='), CalcError);
   assert.throws(() => deg('x+1'), { name: 'CalcError', message: 'x only works in graphs' });
 });
+
+test('absurdly deep nesting is rejected cleanly instead of overflowing the stack', () => {
+  assert.equal(deg(`${'('.repeat(100)}1${')'.repeat(100)}`), 1);
+  assert.equal(deg(`${'−'.repeat(50)}1`), 1);
+  assert.throws(() => deg(`${'('.repeat(600)}1`), { name: 'CalcError', message: 'Too deeply nested' });
+  assert.throws(() => deg(`${'−'.repeat(600)}1`), { name: 'CalcError', message: 'Too deeply nested' });
+  assert.throws(() => deg(`${'√'.repeat(600)}4`), { name: 'CalcError', message: 'Too deeply nested' });
+  assert.throws(() => deg(`2${'^2'.repeat(400)}`), { name: 'CalcError' }); // within limits: just too large
+  assert.throws(() => compileFunction(`${'('.repeat(600)}x`), { name: 'CalcError', message: 'Too deeply nested' });
+  assert.throws(() => deg(`${'('.repeat(20000)}1`), { name: 'CalcError', message: 'Expression too long' });
+  assert.throws(() => deg(`${'1+'.repeat(20000)}1`), { name: 'CalcError', message: 'Expression too long' });
+  assert.equal(deg(`${'1+'.repeat(300)}1`), 301);
+});

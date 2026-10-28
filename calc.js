@@ -33,6 +33,8 @@ export class CalcError extends Error {
 
 const SIGNIFICANT_DIGITS = 15;
 const SNAP_TOLERANCE = 1e-14;
+const MAX_TOKENS = 1000;
+const MAX_DEPTH = 500; // each bracket level counts twice (unary + primary), so ~250 brackets
 
 // Longest names first so "asin" wins over "sin".
 const FUNCTIONS = ['asin', 'acos', 'atan', 'sin', 'cos', 'tan', 'sqrt', 'ln', 'log'];
@@ -88,7 +90,24 @@ function tokenize(input) {
  * @returns {Node}
  */
 function parse(tokens) {
+  // Limits keep pathological input (thousands of brackets or terms) from overflowing the stack.
+  if (tokens.length > MAX_TOKENS) throw new CalcError('Expression too long');
   let pos = 0;
+  let depth = 0;
+  /**
+   * Run one recursive step, refusing to go deeper than MAX_DEPTH.
+   * @param {() => Node} step
+   * @returns {Node}
+   */
+  const nested = (step) => {
+    depth += 1;
+    if (depth > MAX_DEPTH) throw new CalcError('Too deeply nested');
+    try {
+      return step();
+    } finally {
+      depth -= 1;
+    }
+  };
   const peek = () => tokens[pos];
   /** @param {string} value */
   const isOp = (value) => { const t = peek(); return t !== undefined && t.kind === 'op' && t.value === value; };
@@ -126,9 +145,11 @@ function parse(tokens) {
 
   /** @returns {Node} */
   function unary() {
-    if (isOp('-')) { pos += 1; return { type: 'neg', arg: unary() }; }
-    if (isOp('+')) { pos += 1; return unary(); }
-    return power();
+    return nested(() => {
+      if (isOp('-')) { pos += 1; return { type: 'neg', arg: unary() }; }
+      if (isOp('+')) { pos += 1; return unary(); }
+      return power();
+    });
   }
 
   /** @returns {Node} */
@@ -161,6 +182,11 @@ function parse(tokens) {
 
   /** @returns {Node} */
   function primary() {
+    return nested(primaryAt);
+  }
+
+  /** @returns {Node} */
+  function primaryAt() {
     const t = peek();
     if (t === undefined) throw new CalcError('Incomplete expression');
     if (t.kind === 'num') { pos += 1; return { type: 'num', value: t.value }; }

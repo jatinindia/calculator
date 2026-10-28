@@ -1,6 +1,6 @@
 import { evaluate, formatNumber, toExpressionString, compileFunction, CalcError } from './calc.js';
 import { pressKey, backspace, seedFromResult, insertValue, pressKeyAt, backspaceAt, insertValueAt, snapCursor } from './editor.js';
-import { CATEGORIES, findCategory, findUnit, convertUnit, convertCurrency, parseRatesResponse, searchOptions } from './convert.js';
+import { CATEGORIES, findCategory, findUnit, convertUnit, convertCurrency, parseRatesResponse, searchOptions, sanitizeRates } from './convert.js';
 import { filterHistory, setLabel } from './history.js';
 import { TOOLS } from './tools.js';
 import { createGraphView } from './graph-view.js';
@@ -246,14 +246,13 @@ function loadConv(stored) {
  */
 function loadRates(stored) {
   if (stored === null) return null;
-  const s = /** @type {Record<string, unknown>} */ (stored);
-  const ok = typeof s === 'object' && typeof s.base === 'string' && typeof s.updatedAt === 'number'
-    && typeof s.rates === 'object' && s.rates !== null;
-  if (!ok) {
+  const s = /** @type {Record<string, unknown>} */ (typeof stored === 'object' ? stored : {});
+  const rates = sanitizeRates(s.rates);
+  if (typeof s.base !== 'string' || typeof s.updatedAt !== 'number' || rates === null) {
     console.error('Ignoring malformed saved exchange rates', stored);
     return null;
   }
-  return /** @type {RatesSnapshot} */ (stored);
+  return { base: s.base, updatedAt: s.updatedAt, rates };
 }
 
 /**
@@ -501,7 +500,7 @@ function chooseUnit(state, side, id) {
 function convertAmount(state, amount) {
   const { from, to } = activeUnits(state.conv);
   if (state.conv.category !== CURRENCY) return convertUnit(amount, state.conv.category, from, to);
-  if (state.rates === null || !(from in state.rates.rates) || !(to in state.rates.rates)) return null;
+  if (state.rates === null || !Object.hasOwn(state.rates.rates, from) || !Object.hasOwn(state.rates.rates, to)) return null;
   return convertCurrency(amount, from, to, state.rates.rates);
 }
 
@@ -803,7 +802,7 @@ function convMetaText(state) {
       ? `Couldn’t load exchange rates: ${state.ratesStatus.message}`
       : 'Fetching latest exchange rates…';
   }
-  if (rate === null) return `No rate available for ${from in state.rates.rates ? to : from}`;
+  if (rate === null) return `No rate available for ${Object.hasOwn(state.rates.rates, from) ? to : from}`;
   const offline = state.ratesStatus.kind === 'error' ? ' · couldn’t refresh, using saved rates' : '';
   const loading = state.ratesStatus.kind === 'loading' ? ' · refreshing…' : '';
   return `1 ${from} = ${formatNumber(rate)} ${to} · updated ${relativeTime(state.rates.updatedAt)}${loading}${offline}`;

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CATEGORIES, convertUnit, convertCurrency, parseRatesResponse, searchOptions } from './convert.js';
+import { CATEGORIES, convertUnit, convertCurrency, parseRatesResponse, searchOptions, sanitizeRates } from './convert.js';
 import { formatNumber } from './calc.js';
 
 const shown = (value, category, from, to) => formatNumber(convertUnit(value, category, from, to));
@@ -77,4 +77,23 @@ test('picker search ranks code matches before name matches', () => {
   assert.deepEqual(ids('i'), ['INR', 'IDR', 'AUD', 'SGD']);
   assert.deepEqual(ids('xyz'), []);
   assert.deepEqual(searchOptions([{ id: 'ft', code: 'ft', name: 'Foot' }], 'FOO').map((o) => o.id), ['ft']);
+});
+
+test('rates from the network or storage keep only real currency codes and positive numbers', () => {
+  const parsed = parseRatesResponse({
+    result: 'success', base_code: 'USD', time_last_update_unix: 1700000000,
+    rates: { USD: 1, INR: 83, '<img src=x onerror=alert(1)>': 2, __proto__x: 3, toString: 4, eur: 5 },
+  });
+  assert.deepEqual(Object.keys(parsed.rates), ['USD', 'INR']);
+  assert.throws(() => parseRatesResponse({ result: 'success', base_code: 'USD', time_last_update_unix: 1, rates: { INR: -1 } }), /Unexpected rates response/);
+  assert.throws(() => parseRatesResponse({ result: 'success', base_code: 'USD', time_last_update_unix: 1, rates: { INR: Infinity } }), /Unexpected rates response/);
+  assert.deepEqual(sanitizeRates({ USD: 1, INR: 83 }), { USD: 1, INR: 83 });
+  assert.equal(sanitizeRates({ USD: '1' }), null);
+  assert.equal(sanitizeRates('nope'), null);
+  assert.equal(sanitizeRates({}), null);
+});
+
+test('currency lookups ignore inherited object properties', () => {
+  assert.throws(() => convertCurrency(1, 'toString', 'USD', { USD: 1 }), /No rate for toString/);
+  assert.throws(() => convertCurrency(1, 'USD', 'constructor', { USD: 1 }), /No rate for constructor/);
 });

@@ -70,6 +70,8 @@ Your entries are remembered. Tap the big result to copy it.
 
 Everything stays on your device: history, labels, memory and settings are kept in the browser's local storage. The only network request is for exchange rates, made to [open.er-api.com](https://www.exchangerate-api.com) when you use the currency converter. There are no accounts, analytics or ads.
 
+The page runs under a strict Content Security Policy: it can only load its own files and contact the exchange-rate service. Saved data and exchange rates are validated before use and are only ever shown as text, never as HTML.
+
 ## Development
 
 The app is plain HTML, CSS and JavaScript (ES modules), with no dependencies and no build step.
