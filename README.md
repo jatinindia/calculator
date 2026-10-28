@@ -19,6 +19,7 @@ It opens full screen with its own icon, and keeps working with no internet conne
 
 ### Calculate
 - Shows the answer while you type, and closes any brackets you leave open.
+- Your last three answers sit faded above the current sum; tap one to use it.
 - Phone-style percent: `50 + 10%` = 55, `50 × 10%` = 5.
 - Hides floating-point noise: `0.1 + 0.2` shows `0.3`.
 - **Scientific keys** (tap **f(x)**):

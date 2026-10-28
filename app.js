@@ -112,6 +112,7 @@ const el = {
   graphFns: $('graphFns'),
   graphAdd: $('graphAdd'),
   memBadge: $('memBadge'),
+  recent: $('recent'),
   mem: $('mem'),
   conv: $('conv'),
   convChips: $('convChips'),
@@ -1046,6 +1047,38 @@ function updateGraph(state) {
   graphView.setCurves(curves);
 }
 
+const RECENT_COUNT = 3;
+// Recent rows must stay below the memory badge and DEG / f(x) buttons in the display's top corners.
+const RECENT_TOP_CLEARANCE_PX = 40;
+
+/**
+ * The last few answers, faded, above the current sum (oldest at the top).
+ * Right after "=", the newest entry is the sum on screen, so it's skipped.
+ * @param {State} state
+ */
+function renderRecent(state) {
+  const entries = state.history.slice(state.result !== null ? 1 : 0).slice(0, RECENT_COUNT).reverse();
+  el.recent.replaceChildren(...entries.map((entry, i) => {
+    const li = document.createElement('li');
+    const btn = Object.assign(document.createElement('button'), { className: 'recent-item' });
+    btn.dataset.id = entry.id;
+    btn.style.opacity = String(0.45 + (0.55 * (i + 1)) / entries.length);
+    btn.setAttribute('aria-label', `Use ${formatNumber(entry.result)} from ${entry.expr}`);
+    btn.append(
+      Object.assign(document.createElement('span'), { className: 'recent-expr', textContent: entry.label ?? entry.expr }),
+      Object.assign(document.createElement('span'), { className: 'recent-result', textContent: `= ${formatNumber(entry.result)}` }),
+    );
+    li.append(btn);
+    return li;
+  }));
+}
+
+/** Remove the oldest recent rows until the list sits clear of the display's top buttons. */
+function fitRecent() {
+  const top = () => el.recent.getBoundingClientRect().top - el.display.getBoundingClientRect().top;
+  while (el.recent.firstElementChild && top() < RECENT_TOP_CLEARANCE_PX) el.recent.firstElementChild.remove();
+}
+
 /**
  * @param {State} state
  * @param {State | null} prev
@@ -1117,6 +1150,11 @@ function render(state, prev) {
   el.scrim.classList.toggle('show', state.historyOpen || state.picker !== null);
   if (prev === null || prev.history !== state.history || prev.historyQuery !== state.historyQuery) {
     renderHistory(state.history, state.historyQuery);
+  }
+  // Last, once the keys and expression have taken their space.
+  if (calculating) {
+    renderRecent(state);
+    fitRecent();
   }
 }
 
@@ -1274,6 +1312,21 @@ el.historyList.addEventListener('click', (event) => {
     case 'delete': return dispatch((s) => ({ ...s, history: s.history.filter((h) => h.id !== entry.id) }));
     default: throw new Error(`Unknown history action ${btn.dataset.action}`);
   }
+});
+
+// Re-fit the recent rows when the display changes size (rotation, keyboard, window resize).
+new ResizeObserver(() => {
+  if (state.mode !== 'calc') return;
+  renderRecent(state);
+  fitRecent();
+}).observe(el.display);
+
+el.recent.addEventListener('click', (event) => {
+  const btn = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (event.target).closest('.recent-item'));
+  if (!btn) return;
+  const entry = state.history.find((h) => h.id === btn.dataset.id);
+  if (!entry) throw new Error(`Recent entry ${btn.dataset.id} not found in history`);
+  dispatch((s) => onInsert(s, entry.result));
 });
 
 el.historySearch.addEventListener('input', () => dispatch((s) => ({ ...s, historyQuery: el.historySearch.value })));

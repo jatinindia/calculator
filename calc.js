@@ -354,7 +354,11 @@ function clean(n) {
  * @returns {string}
  */
 export function toExpressionString(n) {
-  return String(clean(n));
+  // Rounding to 15 digits hides binary noise (0.30000000000000004 -> 0.3), which is only a few
+  // units in the last place. A bigger difference means real digits (2500000/240), so keep them all.
+  const rounded = clean(n);
+  const noiseOnly = Math.abs(n - rounded) <= 4 * Math.abs(n) * Number.EPSILON;
+  return String(noiseOnly ? rounded : n);
 }
 
 /**

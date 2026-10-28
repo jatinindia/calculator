@@ -138,3 +138,12 @@ test('absurdly deep nesting is rejected cleanly instead of overflowing the stack
   assert.throws(() => deg(`${'1+'.repeat(20000)}1`), { name: 'CalcError', message: 'Expression too long' });
   assert.equal(deg(`${'1+'.repeat(300)}1`), 301);
 });
+
+test('reused answers keep real digits but drop floating-point noise', () => {
+  assert.equal(toExpressionString(0.1 + 0.2), '0.3');
+  assert.equal(toExpressionString(1.1 * 3), '3.3');
+  assert.equal(toExpressionString(2500000 / 240), '10416.666666666666');
+  assert.equal(toExpressionString(1 / 3), '0.3333333333333333');
+  assert.equal(formatNumber(deg(`75×4×${toExpressionString(2500000 / 240)}`)), '3,125,000');
+  assert.equal(formatNumber(deg(`${toExpressionString(1 / 3)}×3`)), '1');
+});
