@@ -290,10 +290,10 @@ svg {
 
 .sci, .pad, .mem {
   display: grid;
-  grid-template-columns: repeat(var(--cols), 1fr);
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); /* equal columns that may shrink below content width */
   gap: var(--gap);
 }
-.sci { --cols: 5; margin-bottom: var(--gap); }
+.sci { --cols: 6; gap: 8px; margin-bottom: var(--gap); }
 .sci[hidden] { display: none; }
 .pad { --cols: 4; }
 .mem { --cols: 5; margin-bottom: var(--gap); }
@@ -331,19 +331,21 @@ svg {
 .fn {
   background: var(--key-fn);
   color: var(--ink-soft);
-  font-size: 17px;
-  height: 46px;
-  border-radius: 14px;
+  font-size: 15px;
+  height: 40px;
+  border-radius: 12px;
   box-shadow: none;
+  white-space: nowrap;
 }
 .fn.on { background: var(--accent); color: var(--accent-ink); }
 
 /* Shorter screens: scientific keys open means compact main keys */
-.calc.sci-open .pad .key { aspect-ratio: 1 / 0.72; }
+.calc.sci-open .pad .key { aspect-ratio: 1 / 0.64; }
 @media (max-height: 700px) {
   .pad .key { aspect-ratio: 1 / 0.7; }
-  .calc.sci-open .pad .key { aspect-ratio: 1 / 0.56; }
-  .fn { height: 40px; }
+  .calc.sci-open .pad .key { aspect-ratio: 1 / 0.5; }
+  .fn { height: 34px; }
+  .sci { gap: 6px; }
   .mem .mk { height: 32px; }
 }
 

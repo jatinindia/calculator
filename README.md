@@ -24,7 +24,10 @@ It opens full screen with its own icon, and keeps working with no internet conne
 - Hides floating-point noise: `0.1 + 0.2` shows `0.3`.
 - **Scientific keys** (tap **f(x)**):
   - sin, cos, tan and their inverses (via **2nd**) in degrees or radians
-  - x², xʸ, √, ln, log, eˣ, 10ˣ, x!, π, e, 1/x
+  - sinh, cosh, tanh and their inverses (via **2nd**)
+  - x², x³, xʸ, √x, ∛x, ʸ√x (type y, then ʸ√x, then x: `4 ʸ√ 81 = 3`), 1/x
+  - ln, log, eˣ, 10ˣ, x!, π, e
+  - **EE** for scientific notation (`6.02×10^23`), **Rand** for a random number
   - **±** and **mod** (remainder: `7 mod 3 = 1`)
 - **Memory:** MC, MR, M+, M−, with a badge showing what's stored, plus **Ans** for the last answer.
 - **Editing:**

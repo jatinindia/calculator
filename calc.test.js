@@ -147,3 +147,35 @@ test('reused answers keep real digits but drop floating-point noise', () => {
   assert.equal(formatNumber(deg(`75×4×${toExpressionString(2500000 / 240)}`)), '3,125,000');
   assert.equal(formatNumber(deg(`${toExpressionString(1 / 3)}×3`)), '1');
 });
+
+test('hyperbolic functions ignore the angle mode', () => {
+  assert.equal(deg('sinh(0)'), 0);
+  assert.equal(deg('cosh(0)'), 1);
+  assert.equal(deg('tanh(0)'), 0);
+  assert.equal(deg('sinh(1)'), Math.sinh(1));
+  assert.equal(rad('cosh(2)'), Math.cosh(2));
+  assert.equal(deg('asinh(0)'), 0);
+  assert.equal(deg('acosh(1)'), 0);
+  assert.equal(shown('atanh(0.5)'), '0.549306144334055');
+  assert.ok(Math.abs(deg('asinh(sinh(1.5))') - 1.5) < 1e-12);
+  assert.throws(() => deg('acosh(0.5)'), CalcError);
+  assert.throws(() => deg('atanh(1)'), CalcError);
+});
+
+test('cube root and y-th root', () => {
+  assert.equal(deg('∛27'), 3);
+  assert.equal(deg('∛−8'), -2);
+  assert.equal(deg('∛(64)'), 4);
+  assert.equal(deg('2∛8'), 4);
+  assert.equal(deg('4ʸ√81'), 3);
+  assert.equal(deg('3ʸ√−8'), -2);
+  assert.equal(deg('2ʸ√16+1'), 5);
+  assert.equal(deg('2×3ʸ√27'), 6);
+  assert.throws(() => deg('2ʸ√−4'), CalcError);
+  assert.throws(() => deg('0ʸ√5'), CalcError);
+});
+
+test('scientific notation via ×10^', () => {
+  assert.equal(shown('6.02×10^23'), '6.02e23');
+  assert.equal(deg('1.5×10^−3'), 0.0015);
+});

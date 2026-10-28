@@ -70,7 +70,8 @@ const DEFAULT_UNITS = /** @type {Readonly<Record<string, { from: string, to: str
 });
 const currencyNames = new Intl.DisplayNames(['en'], { type: 'currency' });
 const ALT_LABELS = /** @type {Readonly<Record<string, string>>} */ ({
-  asin: 'sin⁻¹', acos: 'cos⁻¹', atan: 'tan⁻¹', cube: 'x³', exp: 'eˣ', pow10: '10ˣ',
+  asin: 'sin⁻¹', acos: 'cos⁻¹', atan: 'tan⁻¹', asinh: 'sinh⁻¹', acosh: 'cosh⁻¹', atanh: 'tanh⁻¹',
+  cube: 'x³', exp: 'eˣ', pow10: '10ˣ',
 });
 
 /** @param {string} id */
@@ -577,11 +578,11 @@ function exprNodes(expr, caretAt) {
     return span;
   };
   let pos = 0;
-  for (const part of expr.split(/(asin|acos|atan|sin|cos|tan|ln|log|mod|[+−×÷^])/)) {
+  for (const part of expr.split(/(asinh|acosh|atanh|asin|acos|atan|sinh|cosh|tanh|sin|cos|tan|ln|log|mod|ʸ√|[+−×÷^])/)) {
     if (part === '') continue;
     const start = pos;
     pos += part.length;
-    const className = /^([+−×÷^]|mod)$/.test(part)
+    const className = /^([+−×÷^]|mod|ʸ√)$/.test(part)
       ? (part === 'mod' ? 'o word' : 'o')
       : (/^[a-z]+$/.test(part) && part !== 'e' ? 'f' : '');
     if (caretAt === start) frag.append(caret);
@@ -1214,6 +1215,7 @@ function handleKey(key) {
   if (state.mode === 'convert') return dispatch((s) => onConvKey(s, key));
   switch (key) {
     case 'mc': case 'mr': case 'm+': case 'm−': case 'ans': return handleMemoryKey(key);
+    case 'rand': return dispatch((s) => onInsert(s, Math.round(Math.random() * 1e10) / 1e10));
     case 'clear': return dispatch((s) => ({ ...s, expr: '', cursor: null, result: null, error: null }));
     case 'left': return dispatch((s) => moveCursor(s, -1));
     case 'right': return dispatch((s) => moveCursor(s, 1));

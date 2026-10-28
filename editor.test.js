@@ -132,3 +132,26 @@ test('the cursor never lands inside sin( or mod', () => {
   assert.equal(snapCursor('123', 9), 3);
   assert.equal(snapCursor('123', -2), 0);
 });
+
+test('new scientific keys', () => {
+  assert.equal(typeKeys(['sinh', '1']), 'sinh(1');
+  assert.equal(typeKeys(['atanh']), 'atanh(');
+  assert.equal(typeKeys(['cbrt', '2', '7']), '∛27');
+  assert.equal(typeKeys(['4', 'yroot', '8', '1']), '4ʸ√81');
+  assert.equal(typeKeys(['yroot']), '');
+  assert.equal(typeKeys(['4', 'yroot', '+']), '4+');
+  assert.equal(typeKeys(['6', '.', '0', '2', 'ee', '2', '3']), '6.02×10^23');
+  assert.equal(typeKeys(['ee', '5']), '10^5');
+  assert.equal(typeKeys(['2', '+', 'ee']), '2+10^');
+  assert.equal(seedFromResult('yroot', 81), '81');
+  assert.equal(seedFromResult('ee', 42), '42');
+});
+
+test('new tokens delete and hold the cursor as single units', () => {
+  assert.equal(backspace('4ʸ√'), '4');
+  assert.equal(backspace('2+sinh('), '2+');
+  assert.equal(backspace('acosh('), '');
+  assert.equal(snapCursor('4ʸ√81', 2), 1);
+  assert.equal(snapCursor('2+tanh(1)', 4), 2);
+  assert.equal(insertValue('4ʸ√', 2), '4ʸ√2');
+});

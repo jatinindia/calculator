@@ -1,7 +1,7 @@
 // Offline support: serve the app shell from cache, refresh it in the background.
 // Bump VERSION whenever app files change so phones pick up the update.
 const CACHE_PREFIX = 'calc-';
-const VERSION = `${CACHE_PREFIX}v8`;
+const VERSION = `${CACHE_PREFIX}v9`;
 const ASSETS = [
   './',
   'index.html',

@@ -4,8 +4,10 @@ import { toExpressionString } from './calc.js';
 
 const BINARY_OPS = ['+', '−', '×', '÷', '^', 'mod'];
 // Text after which a new operand (or a unary minus) can start.
-const EXPECTS_OPERAND = /(^|mod|[+−×÷^(√])$/;
-const FUNCTIONS = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'ln', 'log'];
+const EXPECTS_OPERAND = /(^|mod|[+−×÷^(√∛])$/;
+const FUNCTIONS = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh', 'ln', 'log'];
+// Function names as a regex alternation, longest first so "asinh" isn't read as "asin".
+const FUNCTION_NAMES = 'asinh|acosh|atanh|asin|acos|atan|sinh|cosh|tanh|sin|cos|tan|ln|log';
 const POSTFIX_SUFFIX = /** @type {Readonly<Record<string, string>>} */ ({
   '%': '%',
   '!': '!',
@@ -17,12 +19,13 @@ const PLAIN_INSERTS = /** @type {Readonly<Record<string, string>>} */ ({
   '(': '(',
   'π': 'π',
   e: 'e',
+  cbrt: '∛',
   '√': '√',
   exp: 'e^(',
   pow10: '10^(',
 });
 // Keys that, pressed right after "=", continue from the previous result.
-const CONTINUING_KEYS = [...BINARY_OPS, ...Object.keys(POSTFIX_SUFFIX), 'neg', 'wrap'];
+const CONTINUING_KEYS = [...BINARY_OPS, ...Object.keys(POSTFIX_SUFFIX), 'neg', 'wrap', 'yroot', 'ee'];
 
 /**
  * @param {string} expr
@@ -71,8 +74,8 @@ function pressBinary(expr, op) {
     return last === '−' || last === '+' ? expr.slice(0, -1) + op : expr + op;
   }
   // Replace a trailing operator (and any unary minus after it) instead of stacking.
-  const stripped = expr.replace(/(?:mod|[+−×÷^])−?$/, '');
-  if (stripped === '' || /[(√]$/.test(stripped)) return stripped;
+  const stripped = expr.replace(/(?:mod|ʸ√|[+−×÷^])−?$/, '');
+  if (stripped === '' || /[(√∛]$/.test(stripped)) return stripped;
   return stripped + op;
 }
 
@@ -127,6 +130,9 @@ export function pressKey(expr, key) {
   if (key === 'paren') return pressSmartParen(expr);
   if (key === 'neg') return toggleSign(expr);
   if (key === 'wrap') return wrapAll(expr);
+  if (key === 'yroot') return pressBinary(expr, 'ʸ√');
+  // EE: scientific notation, written out as ×10^ so it reads and edits like any other power.
+  if (key === 'ee') return endsWithOperand(expr) ? `${expr}×10^` : `${expr}10^`;
   if (key === ')') return openParens(expr) > 0 && endsWithOperand(expr) ? `${expr})` : expr;
   if (FUNCTIONS.includes(key)) return `${expr}${key}(`;
   if (key in PLAIN_INSERTS) return expr + PLAIN_INSERTS[key];
@@ -139,7 +145,7 @@ export function pressKey(expr, key) {
  * @returns {string}
  */
 export function backspace(expr) {
-  const fn = /(?:(asin|acos|atan|sin|cos|tan|ln|log)\(|mod)$/.exec(expr);
+  const fn = new RegExp(`(?:(?:${FUNCTION_NAMES})\\(|mod|ʸ√)$`).exec(expr);
   return fn ? expr.slice(0, -fn[0].length) : expr.slice(0, -1);
 }
 
@@ -182,7 +188,7 @@ export function insertValue(expr, value) {
 /** @typedef {{ expr: string, cursor: number }} Edit */
 
 // Multi-character tokens the cursor must not split.
-const WORD_TOKENS = /(?:asin|acos|atan|sin|cos|tan|ln|log)\(|mod/g;
+const WORD_TOKENS = new RegExp(`(?:${FUNCTION_NAMES})\\(|mod|ʸ√`, 'g');
 
 /**
  * Move a cursor position to the nearest spot that isn't inside "sin(" or "mod".

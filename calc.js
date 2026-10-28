@@ -18,6 +18,7 @@
  *   | { type: 'percent', arg: Node }
  *   | { type: 'fact', arg: Node }
  *   | { type: 'sqrt', arg: Node }
+ *   | { type: 'cbrt', arg: Node }
  *   | { type: 'call', name: string, arg: Node }
  *   | { type: 'bin', op: string, left: Node, right: Node }
  *   | { type: 'var' }} Node
@@ -37,11 +38,11 @@ const MAX_TOKENS = 1000;
 const MAX_DEPTH = 500; // each bracket level counts twice (unary + primary), so ~250 brackets
 
 // Longest names first so "asin" wins over "sin".
-const FUNCTIONS = ['asin', 'acos', 'atan', 'sin', 'cos', 'tan', 'sqrt', 'ln', 'log'];
+const FUNCTIONS = ['asinh', 'acosh', 'atanh', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'sin', 'cos', 'tan', 'sqrt', 'ln', 'log'];
 const CONSTANTS = /** @type {const} */ ({ pi: Math.PI, 'π': Math.PI, e: Math.E });
 
 /** @type {Readonly<Record<string, string>>} */
-const OPERATOR_ALIASES = { '×': '*', '÷': '/', '−': '-', '*': '*', '/': '/', '-': '-', '+': '+', '^': '^', '%': '%', '!': '!', '√': '√' };
+const OPERATOR_ALIASES = { '×': '*', '÷': '/', '−': '-', '*': '*', '/': '/', '-': '-', '+': '+', '^': '^', '%': '%', '!': '!', '√': '√', '∛': '∛' };
 
 /**
  * @param {string} input
@@ -65,6 +66,7 @@ function tokenize(input) {
       i += text.length;
       continue;
     }
+    if (input.startsWith('ʸ√', i)) { tokens.push({ kind: 'op', value: 'yroot' }); i += 2; continue; }
     if (ch === '(') { tokens.push({ kind: 'lparen' }); i += 1; continue; }
     if (ch === ')') { tokens.push({ kind: 'rparen' }); i += 1; continue; }
     if (ch in OPERATOR_ALIASES) { tokens.push({ kind: 'op', value: OPERATOR_ALIASES[ch] }); i += 1; continue; }
@@ -113,7 +115,7 @@ function parse(tokens) {
   const isOp = (value) => { const t = peek(); return t !== undefined && t.kind === 'op' && t.value === value; };
   const startsOperand = () => {
     const t = peek();
-    return t !== undefined && (t.kind === 'num' || t.kind === 'var' || t.kind === 'fn' || t.kind === 'lparen' || (t.kind === 'op' && t.value === '√'));
+    return t !== undefined && (t.kind === 'num' || t.kind === 'var' || t.kind === 'fn' || t.kind === 'lparen' || (t.kind === 'op' && (t.value === '√' || t.value === '∛')));
   };
 
   /** @returns {Node} */
@@ -155,7 +157,12 @@ function parse(tokens) {
   /** @returns {Node} */
   function power() {
     const base = postfix();
-    if (isOp('^')) { pos += 1; return { type: 'bin', op: '^', left: base, right: unary() }; }
+    // "y ʸ√ x" (the y-th root of x) binds like a power: the right side is the radicand.
+    if (isOp('^') || isOp('yroot')) {
+      const op = /** @type {{ value: string }} */ (tokens[pos]).value;
+      pos += 1;
+      return { type: 'bin', op, left: base, right: unary() };
+    }
     return base;
   }
 
@@ -192,10 +199,10 @@ function parse(tokens) {
     if (t.kind === 'num') { pos += 1; return { type: 'num', value: t.value }; }
     if (t.kind === 'var') { pos += 1; return { type: 'var' }; }
     if (t.kind === 'lparen') return group();
-    if (t.kind === 'op' && t.value === '√') {
+    if (t.kind === 'op' && (t.value === '√' || t.value === '∛')) {
       pos += 1;
       const arg = isOp('-') ? (pos += 1, /** @type {Node} */ ({ type: 'neg', arg: postfix() })) : postfix();
-      return { type: 'sqrt', arg };
+      return t.value === '√' ? { type: 'sqrt', arg } : { type: 'cbrt', arg };
     }
     if (t.kind === 'fn') {
       pos += 1;
@@ -246,10 +253,33 @@ function callFunction(name, x, mode) {
     case 'asin': return inverse(Math.asin);
     case 'acos': return inverse(Math.acos);
     case 'atan': return inverse(Math.atan);
+    // Hyperbolic functions take plain numbers, not angles.
+    case 'sinh': return Math.sinh(x);
+    case 'cosh': return Math.cosh(x);
+    case 'tanh': return Math.tanh(x);
+    case 'asinh': return Math.asinh(x);
+    case 'acosh': return Math.acosh(x);
+    case 'atanh': return Math.atanh(x);
     case 'ln': return Math.log(x);
     case 'log': return Math.log10(x);
     default: throw new CalcError(`Unknown function ${name}`);
   }
+}
+
+/**
+ * The degree-th root of radicand. Odd roots of negatives stay real (3ʸ√−8 = −2), and roots of
+ * perfect powers come out exact (4ʸ√81 = 3, not 3.0000000000000004).
+ * @param {number} degree
+ * @param {number} radicand
+ * @returns {number} NaN when undefined (zeroth root, even root of a negative)
+ */
+function nthRoot(degree, radicand) {
+  if (degree === 0) return NaN;
+  const oddInteger = Number.isInteger(degree) && Math.abs(degree) % 2 === 1;
+  if (radicand < 0 && !oddInteger) return NaN;
+  const root = Math.sign(radicand) * Math.pow(Math.abs(radicand), 1 / degree);
+  const whole = Math.round(root);
+  return Number.isInteger(degree) && whole ** degree === radicand ? whole : root;
 }
 
 /**
@@ -280,6 +310,7 @@ function evalNode(node, mode, x) {
     case 'percent': return evalNode(node.arg, mode, x) / 100;
     case 'fact': return factorial(evalNode(node.arg, mode, x));
     case 'sqrt': return Math.sqrt(evalNode(node.arg, mode, x));
+    case 'cbrt': return Math.cbrt(evalNode(node.arg, mode, x));
     case 'call': return callFunction(node.name, evalNode(node.arg, mode, x), mode);
     case 'bin': {
       const left = evalNode(node.left, mode, x);
@@ -300,6 +331,7 @@ function evalNode(node, mode, x) {
           if (right === 0) throw new CalcError("Can't divide by zero");
           return left - right * Math.floor(left / right);
         case '^': return Math.pow(left, right);
+        case 'yroot': return nthRoot(left, right);
         default: throw new CalcError(`Unknown operator ${node.op}`);
       }
     }
