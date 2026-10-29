@@ -1086,8 +1086,9 @@ function updateGraph(state) {
 }
 
 const RECENT_COUNT = 3;
-// Recent rows must stay below the memory badge and DEG / f(x) buttons in the display's top corners.
-const RECENT_TOP_CLEARANCE_PX = 40;
+// Everything in the display must stay below the memory badge and DEG / f(x) buttons in its top corners.
+const TOP_BUTTONS_CLEARANCE_PX = 40;
+const MIN_MAIN_FONT_PX = 24;
 
 /**
  * The last few answers, faded, above the current sum (oldest at the top).
@@ -1114,7 +1115,22 @@ function renderRecent(state) {
 /** Remove the oldest recent rows until the list sits clear of the display's top buttons. */
 function fitRecent() {
   const top = () => el.recent.getBoundingClientRect().top - el.display.getBoundingClientRect().top;
-  while (el.recent.firstElementChild && top() < RECENT_TOP_CLEARANCE_PX) el.recent.firstElementChild.remove();
+  while (el.recent.firstElementChild && top() < TOP_BUTTONS_CLEARANCE_PX) el.recent.firstElementChild.remove();
+}
+
+/**
+ * On short displays, shrink the big line (the sum while typing, the answer after "=") until
+ * the sum sits clear of the top buttons. Call with the recent rows empty.
+ * @param {boolean} done
+ */
+function fitDisplayHeight(done) {
+  const main = done ? el.result : el.expr;
+  const top = () => el.exprWrap.getBoundingClientRect().top - el.display.getBoundingClientRect().top;
+  let size = Number.parseFloat(getComputedStyle(main).fontSize);
+  while (top() < TOP_BUTTONS_CLEARANCE_PX && size > MIN_MAIN_FONT_PX) {
+    size -= 2;
+    main.style.fontSize = `${size}px`;
+  }
 }
 
 /**
@@ -1189,8 +1205,10 @@ function render(state, prev) {
   if (prev === null || prev.history !== state.history || prev.historyQuery !== state.historyQuery) {
     renderHistory(state.history, state.historyQuery);
   }
-  // Last, once the keys and expression have taken their space.
+  // Last, once the keys have taken their space: make the sum fit, then fill what's left with recent rows.
   if (calculating) {
+    el.recent.replaceChildren();
+    fitDisplayHeight(state.result !== null);
     renderRecent(state);
     fitRecent();
   }
@@ -1353,11 +1371,9 @@ el.historyList.addEventListener('click', (event) => {
   }
 });
 
-// Re-fit the recent rows when the display changes size (rotation, keyboard, window resize).
+// Re-fit the display when it changes size (rotation, scientific keys, window resize).
 new ResizeObserver(() => {
-  if (state.mode !== 'calc') return;
-  renderRecent(state);
-  fitRecent();
+  if (state.mode === 'calc') render(state, state);
 }).observe(el.display);
 
 el.recent.addEventListener('click', (event) => {
