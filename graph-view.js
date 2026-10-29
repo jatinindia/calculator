@@ -333,5 +333,9 @@ export function createGraphView(canvas, readout) {
       trace = null;
       draw();
     },
+    /** Repaint, e.g. after the theme changes colours. */
+    redraw() {
+      draw();
+    },
   };
 }

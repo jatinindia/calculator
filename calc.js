@@ -408,3 +408,35 @@ export function formatNumber(n) {
   const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return fracPart === undefined ? grouped : `${grouped}.${fracPart}`;
 }
+
+/**
+ * Regroup every comma-grouped number in `text` the Indian way (12,34,567 instead of 1,234,567).
+ * Works on finished display strings, so it can be applied to any label or result line.
+ * @param {string} text
+ * @returns {string}
+ */
+export function indianGrouping(text) {
+  return text.replace(/\d{1,3}(?:,\d{3})+/g, (grouped) => {
+    const digits = grouped.replace(/,/g, '');
+    const lastThree = digits.slice(-3);
+    const rest = digits.slice(0, -3);
+    return `${rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${lastThree}`;
+  });
+}
+
+/**
+ * Display with exactly `places` decimals and thousands separators. Values too large for a
+ * readable fixed form fall back to formatNumber's exponent style.
+ * @param {number} n
+ * @param {number} places
+ * @returns {string}
+ */
+export function formatDecimals(n, places) {
+  if (Math.abs(n) >= 1e15) return formatNumber(n);
+  const fixed = n.toFixed(places);
+  const unsigned = fixed.replace(/^-/, '');
+  const isZero = Number(unsigned) === 0;
+  const [intPart, fracPart] = unsigned.split('.');
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${n < 0 && !isZero ? '-' : ''}${grouped}${fracPart === undefined ? '' : `.${fracPart}`}`;
+}

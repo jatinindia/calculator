@@ -91,6 +91,19 @@ Your entries are remembered. Tap the big result to copy it.
 - Quick keys insert x, powers, √, brackets and functions without closing the keyboard.
 - Graphs always use radians.
 
+### Settings
+Tap the **gear** (top right):
+
+| Setting | Options |
+|---|---|
+| Theme | System, Light, Dark |
+| Key size | Compact (more room for the display and recent answers), Regular, Large |
+| Number style | 1,000,000 or Indian 10,00,000 |
+| Decimal places | Auto, 2, 4, 6 (copying always gives the full-precision answer) |
+| Recent answers above the sum | Off, 1, 2, 3 |
+| Start in | Degrees or Radians |
+| Key click sound | Off, On (respects the iPhone silent switch) |
+
 ### Everywhere
 - Light and dark themes follow your phone's setting.
 - Tap any result to copy it.

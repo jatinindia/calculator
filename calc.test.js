@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluate, formatNumber, toExpressionString, compileFunction, CalcError } from './calc.js';
+import { evaluate, formatNumber, toExpressionString, compileFunction, indianGrouping, formatDecimals, CalcError } from './calc.js';
 
 const deg = (expr) => evaluate(expr, 'deg');
 const rad = (expr) => evaluate(expr, 'rad');
@@ -178,4 +178,26 @@ test('cube root and y-th root', () => {
 test('scientific notation via ×10^', () => {
   assert.equal(shown('6.02×10^23'), '6.02e23');
   assert.equal(deg('1.5×10^−3'), 0.0015);
+});
+
+test('Indian digit grouping regroups every number in a piece of text', () => {
+  assert.equal(indianGrouping('1,234,567.89'), '12,34,567.89');
+  assert.equal(indianGrouping('-1,500,000'), '-15,00,000');
+  assert.equal(indianGrouping('123,456,789,012,345'), '12,34,56,78,90,12,345');
+  assert.equal(indianGrouping('= 10,416.6666666667'), '= 10,416.6666666667');
+  assert.equal(indianGrouping('Total 2,082,775.76 · 240 EMIs'), 'Total 20,82,775.76 · 240 EMIs');
+  assert.equal(indianGrouping('999'), '999');
+  assert.equal(indianGrouping('1.5e21'), '1.5e21');
+  assert.equal(indianGrouping('1 USD = 95.199335 INR'), '1 USD = 95.199335 INR');
+});
+
+test('fixed decimal places', () => {
+  assert.equal(formatDecimals(3.3, 2), '3.30');
+  assert.equal(formatDecimals(1234.5678, 2), '1,234.57');
+  assert.equal(formatDecimals(0.1 + 0.2, 4), '0.3000');
+  assert.equal(formatDecimals(-0.004, 2), '0.00');
+  assert.equal(formatDecimals(-1500.256, 2), '-1,500.26');
+  assert.equal(formatDecimals(2 / 3, 6), '0.666667');
+  assert.equal(formatDecimals(1e21, 2), '1e21');
+  assert.equal(formatDecimals(42, 2), '42.00');
 });

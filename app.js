@@ -1,4 +1,4 @@
-import { evaluate, formatNumber, toExpressionString, compileFunction, CalcError } from './calc.js';
+import { evaluate, formatNumber, toExpressionString, compileFunction, indianGrouping, formatDecimals, CalcError } from './calc.js';
 import { pressKey, backspace, seedFromResult, insertValue, pressKeyAt, backspaceAt, insertValueAt, snapCursor } from './editor.js';
 import { CATEGORIES, findCategory, findUnit, convertUnit, convertCurrency, parseRatesResponse, searchOptions, sanitizeRates, allUnitOptions } from './convert.js';
 import { filterHistory, setLabel } from './history.js';
@@ -6,6 +6,17 @@ import { TOOLS } from './tools.js';
 import { createGraphView } from './graph-view.js';
 
 /** @typedef {import('./calc.js').AngleMode} AngleMode */
+/**
+ * @typedef {{
+ *   theme: 'system' | 'light' | 'dark',
+ *   keySize: 'compact' | 'regular' | 'large',
+ *   grouping: 'international' | 'indian',
+ *   decimals: 'auto' | '2' | '4' | '6',
+ *   recent: 0 | 1 | 2 | 3,
+ *   sound: boolean,
+ *   startAngle: AngleMode,
+ * }} Settings
+ */
 /** @typedef {import('./history.js').HistoryEntry} HistoryEntry */
 /** @typedef {import('./convert.js').RatesSnapshot} RatesSnapshot */
 /** @typedef {import('./convert.js').PickerOption} PickerOption */
@@ -32,6 +43,8 @@ import { createGraphView } from './graph-view.js';
  *   conv: ConvState,
  *   tools: ToolsState,
  *   graph: { fns: string[] },
+ *   settings: Settings,
+ *   settingsOpen: boolean,
  *   rates: RatesSnapshot | null,
  *   ratesFetchedAt: number | null,
  *   ratesStatus: RatesStatus,
@@ -47,6 +60,7 @@ const STORAGE = {
   rates: 'calc.rates.v1',
   tools: 'calc.tools.v1',
   graph: 'calc.graph.v1',
+  settings: 'calc.settings.v1',
   ratesFetchedAt: 'calc.ratesFetchedAt.v1',
 };
 const HISTORY_LIMIT = 500;
@@ -92,6 +106,10 @@ const el = {
   secondBtn: $('secondBtn'),
   history: $('history'),
   historyBtn: $('historyBtn'),
+  settingsBtn: $('settingsBtn'),
+  settings: $('settings'),
+  settingsBody: $('settingsBody'),
+  settingsClose: $('settingsClose'),
   historyList: $('historyList'),
   historyEmpty: $('historyEmpty'),
   clearHistoryBtn: /** @type {HTMLButtonElement} */ ($('clearHistoryBtn')),
@@ -297,6 +315,39 @@ function loadGraph(stored) {
   return { fns: valid ? /** @type {string[]} */ (fns) : ['x^2-3', 'sin(x)'] };
 }
 
+/** @type {Readonly<Settings>} */
+const DEFAULT_SETTINGS = {
+  theme: 'system', keySize: 'regular', grouping: 'international', decimals: 'auto', recent: 3, sound: false, startAngle: 'deg',
+};
+
+/**
+ * Allowed values for each setting, in the order the Settings sheet shows them.
+ * @type {Readonly<Record<keyof Settings, readonly (string | number | boolean)[]>>}
+ */
+const SETTING_CHOICES = {
+  theme: ['system', 'light', 'dark'],
+  keySize: ['compact', 'regular', 'large'],
+  grouping: ['international', 'indian'],
+  decimals: ['auto', '2', '4', '6'],
+  recent: [0, 1, 2, 3],
+  sound: [false, true],
+  startAngle: ['deg', 'rad'],
+};
+
+/**
+ * Saved settings, keeping only known keys with allowed values.
+ * @param {unknown} stored
+ * @returns {Settings}
+ */
+function loadSettings(stored) {
+  const s = /** @type {Record<string, unknown>} */ (typeof stored === 'object' && stored !== null ? stored : {});
+  const settings = /** @type {Record<string, unknown>} */ ({ ...DEFAULT_SETTINGS });
+  for (const [key, choices] of Object.entries(SETTING_CHOICES)) {
+    if (choices.includes(/** @type {string} */ (s[key]))) settings[key] = s[key];
+  }
+  return /** @type {Settings} */ (settings);
+}
+
 /** @returns {State} */
 function loadState() {
   const history = readStored(STORAGE.history);
@@ -304,13 +355,14 @@ function loadState() {
   const expr = readStored(STORAGE.expr);
   const memory = readStored(STORAGE.memory);
   const ratesFetchedAt = readStored(STORAGE.ratesFetchedAt);
+  const settings = loadSettings(readStored(STORAGE.settings));
   return {
     mode: prefs?.mode === 'convert' || prefs?.mode === 'tools' || prefs?.mode === 'graph' ? prefs.mode : 'calc',
     expr: typeof expr === 'string' ? expr : '',
     cursor: null,
     result: null,
     error: null,
-    angle: prefs?.angle === 'rad' ? 'rad' : 'deg',
+    angle: settings.startAngle,
     sci: prefs?.sci === true,
     second: false,
     memory: typeof memory === 'number' ? memory : null,
@@ -322,6 +374,8 @@ function loadState() {
     conv: loadConv(readStored(STORAGE.conv)),
     tools: loadTools(readStored(STORAGE.tools)),
     graph: loadGraph(readStored(STORAGE.graph)),
+    settings,
+    settingsOpen: false,
     rates: loadRates(readStored(STORAGE.rates)),
     ratesFetchedAt: typeof ratesFetchedAt === 'number' ? ratesFetchedAt : null,
     ratesStatus: { kind: 'idle', message: '' },
@@ -341,6 +395,7 @@ function persist(prev, next) {
   if (prev.conv !== next.conv) writeStored(STORAGE.conv, next.conv);
   if (prev.tools !== next.tools) writeStored(STORAGE.tools, next.tools);
   if (prev.graph !== next.graph) writeStored(STORAGE.graph, next.graph);
+  if (prev.settings !== next.settings) writeStored(STORAGE.settings, next.settings);
   if (prev.rates !== next.rates) writeStored(STORAGE.rates, next.rates);
   if (prev.ratesFetchedAt !== next.ratesFetchedAt) writeStored(STORAGE.ratesFetchedAt, next.ratesFetchedAt);
   const exprToKeep = next.result === null ? next.expr : '';
@@ -557,6 +612,26 @@ function onConvKey(state, key) {
 // ---------- Rendering ----------
 
 /**
+ * Apply the number-style setting to finished display text.
+ * @param {Settings} settings
+ * @param {string} text
+ * @returns {string}
+ */
+function group(settings, text) {
+  return settings.grouping === 'indian' ? indianGrouping(text) : text;
+}
+
+/**
+ * A number as the user wants to see it: decimal places, then digit grouping.
+ * @param {Settings} settings
+ * @param {number} n
+ * @returns {string}
+ */
+function fmt(settings, n) {
+  return group(settings, settings.decimals === 'auto' ? formatNumber(n) : formatDecimals(n, Number(settings.decimals)));
+}
+
+/**
  * Live preview of the result while typing, or '' when not meaningful.
  * @param {State} state
  * @returns {string}
@@ -564,7 +639,7 @@ function onConvKey(state, key) {
 function previewText(state) {
   if (!/[+−×÷^%!√a-zπ(]/.test(state.expr.replace(/e[+-]\d/, ''))) return '';
   try {
-    return formatNumber(evaluate(state.expr, state.angle));
+    return fmt(state.settings, evaluate(state.expr, state.angle));
   } catch (err) {
     if (err instanceof CalcError) return '';
     throw err;
@@ -643,8 +718,9 @@ const LABEL_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12V4
 /**
  * @param {HistoryEntry[]} history
  * @param {string} query
+ * @param {Settings} settings
  */
-function renderHistory(history, query) {
+function renderHistory(history, query, settings) {
   const shown = filterHistory(history, query);
   el.historyList.replaceChildren();
   el.historyEmpty.hidden = shown.length > 0;
@@ -676,9 +752,9 @@ function renderHistory(history, query) {
     const resultBtn = document.createElement('button');
     resultBtn.className = 'entry-result';
     resultBtn.dataset.action = 'use';
-    resultBtn.textContent = formatNumber(entry.result);
+    resultBtn.textContent = fmt(settings, entry.result);
     resultBtn.classList.toggle('long', resultBtn.textContent.length > 15);
-    resultBtn.setAttribute('aria-label', `Use result ${formatNumber(entry.result)}`);
+    resultBtn.setAttribute('aria-label', `Use result ${resultBtn.textContent}`);
     const time = document.createElement('span');
     time.className = 'entry-time';
     time.textContent = new Date(entry.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -834,7 +910,7 @@ function convMetaText(state) {
   const { from, to } = activeUnits(state.conv);
   const rate = convertAmount(state, 1);
   if (state.conv.category !== CURRENCY) {
-    return `1 ${unitLabel(state, from).code} = ${rate === null ? '—' : formatNumber(rate)} ${unitLabel(state, to).code}`;
+    return `1 ${unitLabel(state, from).code} = ${rate === null ? '—' : fmt(state.settings, rate)} ${unitLabel(state, to).code}`;
   }
   if (state.rates === null) {
     return state.ratesStatus.kind === 'error'
@@ -844,7 +920,7 @@ function convMetaText(state) {
   if (rate === null) return `No rate available for ${Object.hasOwn(state.rates.rates, from) ? to : from}`;
   const offline = state.ratesStatus.kind === 'error' ? ' · couldn’t refresh, using saved rates' : '';
   const loading = state.ratesStatus.kind === 'loading' ? ' · refreshing…' : '';
-  return `1 ${from} = ${formatNumber(rate)} ${to} · updated ${relativeTime(state.rates.updatedAt)}${loading}${offline}`;
+  return `1 ${from} = ${fmt(state.settings, rate)} ${to} · updated ${relativeTime(state.rates.updatedAt)}${loading}${offline}`;
 }
 
 /**
@@ -869,9 +945,9 @@ function renderConverter(state) {
   const amount = inputValue(state.conv.input);
   const converted = amount === null ? null : convertAmount(state, amount);
   const caret = Object.assign(document.createElement('span'), { className: 'caret' });
-  el.fromValue.replaceChildren(state.conv.input === '' ? '0' : groupTyped(state.conv.input), caret);
+  el.fromValue.replaceChildren(state.conv.input === '' ? '0' : group(state.settings, groupTyped(state.conv.input)), caret);
   el.fromValue.classList.toggle('ghost', state.conv.input === '');
-  el.toValue.textContent = converted === null ? (state.conv.input === '' ? '0' : '—') : formatNumber(converted);
+  el.toValue.textContent = converted === null ? (state.conv.input === '' ? '0' : '—') : fmt(state.settings, converted);
   el.toValue.classList.toggle('ghost', converted === null);
   fitText(el.fromValue, el.fromValue, 40, 20);
   fitText(el.toValue, el.toValue, 40, 20);
@@ -1016,7 +1092,7 @@ function renderTools(state, prev) {
     const line = Object.assign(document.createElement(r.primary ? 'button' : 'div'), { className: r.primary ? 'tool-row primary' : 'tool-row' });
     line.append(
       Object.assign(document.createElement('span'), { className: 'tool-label', textContent: r.label }),
-      Object.assign(document.createElement('span'), { className: 'tool-value', textContent: r.value }),
+      Object.assign(document.createElement('span'), { className: 'tool-value', textContent: group(state.settings, r.value) }),
     );
     if (r.primary) line.dataset.copy = r.value;
     return line;
@@ -1085,7 +1161,6 @@ function updateGraph(state) {
   graphView.setCurves(curves);
 }
 
-const RECENT_COUNT = 3;
 // Everything in the display must stay below the memory badge and DEG / f(x) buttons in its top corners.
 const TOP_BUTTONS_CLEARANCE_PX = 40;
 const MIN_MAIN_FONT_PX = 24;
@@ -1096,16 +1171,16 @@ const MIN_MAIN_FONT_PX = 24;
  * @param {State} state
  */
 function renderRecent(state) {
-  const entries = state.history.slice(state.result !== null ? 1 : 0).slice(0, RECENT_COUNT).reverse();
+  const entries = state.history.slice(state.result !== null ? 1 : 0).slice(0, state.settings.recent).reverse();
   el.recent.replaceChildren(...entries.map((entry, i) => {
     const li = document.createElement('li');
     const btn = Object.assign(document.createElement('button'), { className: 'recent-item' });
     btn.dataset.id = entry.id;
     btn.style.opacity = String(0.45 + (0.55 * (i + 1)) / entries.length);
-    btn.setAttribute('aria-label', `Use ${formatNumber(entry.result)} from ${entry.expr}`);
+    btn.setAttribute('aria-label', `Use ${fmt(state.settings, entry.result)} from ${entry.expr}`);
     btn.append(
       Object.assign(document.createElement('span'), { className: 'recent-expr', textContent: entry.label ?? entry.expr }),
-      Object.assign(document.createElement('span'), { className: 'recent-result', textContent: `= ${formatNumber(entry.result)}` }),
+      Object.assign(document.createElement('span'), { className: 'recent-result', textContent: `= ${fmt(state.settings, entry.result)}` }),
     );
     li.append(btn);
     return li;
@@ -1133,6 +1208,55 @@ function fitDisplayHeight(done) {
   }
 }
 
+// ---------- Settings ----------
+
+const THEME_COLORS = { light: '#f4f2ee', dark: '#0d0e12' };
+const themeMetas = /** @type {HTMLMetaElement[]} */ ([...document.querySelectorAll('meta[name="theme-color"]')]);
+
+/**
+ * Push settings that live outside the app's own markup: theme, key size, status-bar colour.
+ * @param {Settings} settings
+ */
+function applySettings(settings) {
+  const root = document.documentElement;
+  if (settings.theme === 'system') delete root.dataset.theme;
+  else root.dataset.theme = settings.theme;
+  root.dataset.keySize = settings.keySize;
+  for (const meta of themeMetas) {
+    const systemColor = meta.media.includes('dark') ? THEME_COLORS.dark : THEME_COLORS.light;
+    meta.content = settings.theme === 'system' ? systemColor : THEME_COLORS[settings.theme];
+  }
+  for (const seg of el.settingsBody.querySelectorAll('[data-setting]')) {
+    const key = /** @type {keyof Settings} */ (/** @type {HTMLElement} */ (seg).dataset.setting);
+    for (const btn of seg.children) {
+      const b = /** @type {HTMLElement} */ (btn);
+      b.setAttribute('aria-selected', String(b.dataset.value === String(settings[key])));
+    }
+  }
+  graphView.redraw();
+}
+
+/** @type {AudioContext | null} */
+let audio = null;
+
+/** A short, quiet tick. Uses the "ambient" audio session so the iPhone silent switch mutes it. */
+function playClick() {
+  const nav = /** @type {Navigator & { audioSession?: { type: string } }} */ (navigator);
+  if (nav.audioSession) nav.audioSession.type = 'ambient';
+  audio ??= new AudioContext();
+  if (audio.state === 'suspended') void audio.resume();
+  const t = audio.currentTime;
+  const osc = audio.createOscillator();
+  const gain = audio.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(1600, t);
+  gain.gain.setValueAtTime(0.06, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+  osc.connect(gain).connect(audio.destination);
+  osc.start(t);
+  osc.stop(t + 0.035);
+}
+
 /**
  * @param {State} state
  * @param {State | null} prev
@@ -1157,7 +1281,7 @@ function render(state, prev) {
   if (prev === null || prev.graph !== state.graph) updateGraph(state);
   if (tooling) renderTools(state, prev);
   el.memBadge.hidden = state.memory === null;
-  el.memBadge.textContent = state.memory === null ? '' : `M  ${formatNumber(state.memory)}`;
+  el.memBadge.textContent = state.memory === null ? '' : `M  ${fmt(state.settings, state.memory)}`;
   if (converting) renderConverter(state);
   el.picker.classList.toggle('open', state.picker !== null);
   const pickerChanged = prev === null || prev.picker !== state.picker || prev.pickerQuery !== state.pickerQuery
@@ -1181,7 +1305,7 @@ function render(state, prev) {
   if (state.error !== null) {
     el.result.textContent = state.error;
   } else if (done) {
-    const text = formatNumber(/** @type {number} */ (state.result));
+    const text = fmt(state.settings, /** @type {number} */ (state.result));
     el.result.textContent = text;
     fitText(el.result, el.result, 64, 28);
   } else {
@@ -1201,9 +1325,11 @@ function render(state, prev) {
   }
 
   el.history.classList.toggle('open', state.historyOpen);
-  el.scrim.classList.toggle('show', state.historyOpen || state.picker !== null);
-  if (prev === null || prev.history !== state.history || prev.historyQuery !== state.historyQuery) {
-    renderHistory(state.history, state.historyQuery);
+  el.scrim.classList.toggle('show', state.historyOpen || state.picker !== null || state.settingsOpen);
+  el.settings.classList.toggle('open', state.settingsOpen);
+  if (prev === null || prev.settings !== state.settings) applySettings(state.settings);
+  if (prev === null || prev.history !== state.history || prev.historyQuery !== state.historyQuery || prev.settings !== state.settings) {
+    renderHistory(state.history, state.historyQuery, state.settings);
   }
   // Last, once the keys have taken their space: make the sum fit, then fill what's left with recent rows.
   if (calculating) {
@@ -1258,7 +1384,7 @@ function handleMemoryKey(key) {
       if (value === null) return showToast('Nothing to store yet');
       const signed = key === 'm+' ? value : -value;
       dispatch((s) => ({ ...s, memory: (s.memory ?? 0) + signed }));
-      return showToast(`Memory: ${formatNumber(/** @type {number} */ (state.memory))}`);
+      return showToast(`Memory: ${fmt(state.settings, /** @type {number} */ (state.memory))}`);
     }
     default: throw new Error(`Unknown memory key "${key}"`);
   }
@@ -1312,6 +1438,7 @@ document.addEventListener('click', (event) => {
   }
   if (keyBtn) {
     const key = state.second && keyBtn.dataset.alt ? keyBtn.dataset.alt : /** @type {string} */ (keyBtn.dataset.key);
+    if (state.settings.sound) playClick();
     handleKey(key);
   }
 });
@@ -1319,8 +1446,20 @@ document.addEventListener('click', (event) => {
 el.angleBtn.addEventListener('click', () => dispatch((s) => ({ ...s, angle: s.angle === 'deg' ? 'rad' : 'deg', result: null })));
 el.sciBtn.addEventListener('click', () => dispatch((s) => ({ ...s, sci: !s.sci })));
 el.historyBtn.addEventListener('click', () => dispatch((s) => ({ ...s, historyOpen: true })));
+el.settingsBtn.addEventListener('click', () => dispatch((s) => ({ ...s, settingsOpen: true })));
+el.settingsClose.addEventListener('click', () => dispatch((s) => ({ ...s, settingsOpen: false })));
+el.settingsBody.addEventListener('click', (event) => {
+  const btn = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (event.target).closest('.seg-btn'));
+  const seg = /** @type {HTMLElement | null} */ (btn?.closest('[data-setting]') ?? null);
+  if (!btn || !seg) return;
+  const key = /** @type {keyof Settings} */ (seg.dataset.setting);
+  const value = SETTING_CHOICES[key].find((choice) => String(choice) === btn.dataset.value);
+  if (value === undefined) throw new Error(`Unknown value "${btn.dataset.value}" for setting ${key}`);
+  dispatch((s) => ({ ...s, settings: { ...s.settings, [key]: value } }));
+  if (key === 'sound' && value === true) playClick(); // a sample, so you hear what you turned on
+});
 el.closeHistoryBtn.addEventListener('click', () => dispatch((s) => ({ ...s, historyOpen: false })));
-el.scrim.addEventListener('click', () => dispatch((s) => ({ ...s, historyOpen: false, picker: null })));
+el.scrim.addEventListener('click', () => dispatch((s) => ({ ...s, historyOpen: false, picker: null, settingsOpen: false })));
 el.clearHistoryBtn.addEventListener('click', () => {
   if (confirm('Clear all history? This can’t be undone.')) dispatch((s) => ({ ...s, history: [] }));
 });
@@ -1347,7 +1486,7 @@ function editLabel(item, entry) {
     if (finished) return;
     finished = true;
     if (save) dispatch((s) => ({ ...s, history: setLabel(s.history, entry.id, input.value) }));
-    else renderHistory(state.history, state.historyQuery);
+    else renderHistory(state.history, state.historyQuery, state.settings);
   };
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') finish(true);
@@ -1594,7 +1733,10 @@ el.toolResults.addEventListener('click', (event) => {
 });
 
 el.result.addEventListener('click', () => {
-  const value = state.result !== null ? toExpressionString(state.result) : previewText(state).replace(/,/g, '');
+  // Copy the full-precision value, whatever the decimal-places setting shows.
+  const current = currentValue(state);
+  const nothingShown = state.result === null && previewText(state) === '';
+  const value = current === null || nothingShown ? '' : toExpressionString(current);
   if (value === '' || state.error !== null) return;
   void copyText(value);
 });
@@ -1656,8 +1798,8 @@ document.addEventListener('keydown', (event) => {
   const key = /^[0-9]$/.test(event.key) ? event.key : KEYBOARD[event.key];
   if (key === undefined) return;
   event.preventDefault();
-  if (key === 'clear' && (state.historyOpen || state.picker !== null)) {
-    dispatch((s) => ({ ...s, historyOpen: false, picker: null }));
+  if (key === 'clear' && (state.historyOpen || state.picker !== null || state.settingsOpen)) {
+    dispatch((s) => ({ ...s, historyOpen: false, picker: null, settingsOpen: false }));
     return;
   }
   handleKey(key);

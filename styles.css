@@ -25,8 +25,9 @@
   color-scheme: light;
 }
 
+/* Dark tokens: used when the phone is dark (unless Light is forced) or when Dark is chosen in Settings. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0d0e12;
     --surface: #15171c;
     --key-num: #1c1e24;
@@ -49,6 +50,29 @@
     --graph-3: #3ddc84;
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #0d0e12;
+  --surface: #15171c;
+  --key-num: #1c1e24;
+  --key-util: #2a2d35;
+  --key-fn: #17191e;
+  --key-op: #2b1d16;
+  --key-op-ink: #ff8a55;
+  --accent: #ff6a2b;
+  --accent-ink: #ffffff;
+  --ink: #f3f3f5;
+  --ink-soft: #9a9ca5;
+  --ink-faint: #5c5f68;
+  --line: rgba(255, 255, 255, 0.07);
+  --shadow: none;
+  --sheet: #15171c;
+  --danger: #ff5c5c;
+  --card: #17191e;
+  --graph-1: #ff7a3d;
+  --graph-2: #6c9eff;
+  --graph-3: #3ddc84;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -120,6 +144,7 @@ svg {
   min-height: 44px;
 }
 .topbar .tabs { grid-column: 2; justify-self: center; }
+#settingsBtn { grid-column: 3; }
 
 .display-tools {
   position: absolute;
@@ -317,8 +342,9 @@ svg {
 }
 .key:active, .key.pressed { transform: scale(0.94); filter: brightness(0.9); }
 @media (prefers-color-scheme: dark) {
-  .key:active, .key.pressed { filter: brightness(1.35); }
+  :root:not([data-theme="light"]) .key:active, :root:not([data-theme="light"]) .key.pressed { filter: brightness(1.35); }
 }
+:root[data-theme="dark"] .key:active, :root[data-theme="dark"] .key.pressed { filter: brightness(1.35); }
 
 .pad .key { aspect-ratio: 1 / 0.86; }
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -1030,6 +1056,47 @@ svg {
 @keyframes shake {
   20%, 60% { transform: translateX(-6px); }
   40%, 80% { transform: translateX(6px); }
+}
+
+/* ---------- Settings ---------- */
+
+.settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 20px 32px;
+  -webkit-overflow-scrolling: touch;
+}
+.settings-group {
+  margin: 22px 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.setting { margin-bottom: 16px; }
+.setting-label { display: block; margin: 0 2px 8px; font-size: 15px; font-weight: 500; }
+.setting-hint { margin: 6px 2px 0; font-size: 12px; color: var(--ink-faint); }
+.settings-note { margin: 26px 0 0; font-size: 12px; color: var(--ink-faint); text-align: center; }
+
+/* ---------- Key size setting ---------- */
+
+:root[data-key-size="compact"] .pad { gap: 8px; }
+:root[data-key-size="compact"] .pad .key { aspect-ratio: 1 / 0.62; font-size: 24px; }
+:root[data-key-size="compact"] .calc.sci-open .pad .key { aspect-ratio: 1 / 0.46; }
+:root[data-key-size="compact"] .pad .util { font-size: 19px; }
+:root[data-key-size="compact"] .pad .op { font-size: 27px; }
+:root[data-key-size="compact"] .pad .eq { font-size: 29px; }
+:root[data-key-size="compact"] .sci { gap: 6px; }
+:root[data-key-size="compact"] .fn { height: 32px; font-size: 14px; border-radius: 10px; }
+:root[data-key-size="compact"] .mem .mk { height: 30px; font-size: 14px; }
+:root[data-key-size="large"] .pad .key { aspect-ratio: 1 / 0.98; font-size: 32px; }
+:root[data-key-size="large"] .calc.sci-open .pad .key { aspect-ratio: 1 / 0.72; }
+:root[data-key-size="large"] .fn { height: 44px; font-size: 16px; }
+@media (max-height: 700px) {
+  :root[data-key-size="large"] .pad .key { aspect-ratio: 1 / 0.84; }
+  :root[data-key-size="large"] .calc.sci-open .pad .key { aspect-ratio: 1 / 0.56; }
+  :root[data-key-size="large"] .fn { height: 38px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
