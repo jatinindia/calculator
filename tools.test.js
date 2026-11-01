@@ -98,3 +98,10 @@ test('tool rows show the expected headline values', () => {
   assert.equal(headline('date', 'between', SAMPLES.date), '74 days');
   assert.equal(headline('date', 'add', SAMPLES.date), 'Sat, 6 Feb 2027');
 });
+
+test('tool differences leave no binary noise', () => {
+  const rows = TOOLS.find((t) => t.id === 'percent').modes.find((m) => m.id === 'change')
+    .compute({ from: '39039.34', to: '39053.21' });
+  assert.equal(rows.find((r) => r.label === 'Difference').value, '+13.87');
+  assert.equal(discount(1000.1, 99.99).final, 0.10001);
+});

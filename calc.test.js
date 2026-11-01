@@ -26,6 +26,22 @@ test('floating point noise is hidden in display', () => {
   assert.equal(shown('1.1*3'), '3.3');
 });
 
+test('subtracting close numbers leaves no binary noise', () => {
+  assert.equal(deg('39053.21−39039.34'), 13.87);
+  assert.equal(deg('1351114.31−1351051.57'), 62.74);
+  assert.equal(deg('0.1+0.2−0.3'), 0);
+  assert.equal(deg('1000000.1+0.2'), 1000000.3);
+  assert.equal(deg('5.5 mod 0.1'), 0);
+  assert.equal(deg('1351114.31−1351051.57+(39053.21−39039.34)'), 76.61);
+});
+
+test('addition still keeps every real digit', () => {
+  assert.equal(deg('123456789.123456+0.000001'), 123456789.123457);
+  assert.equal(deg('1e-20+2e-20'), 3e-20);
+  assert.equal(deg('2/3−1/3'), 1 / 3);
+  assert.equal(deg('2500000/240−10000'), 2500000 / 240 - 10000);
+});
+
 test('percent behaves like a phone calculator', () => {
   assert.equal(deg('10%'), 0.1);
   assert.equal(deg('50+10%'), 55);

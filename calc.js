@@ -317,19 +317,19 @@ function evalNode(node, mode, x) {
       // Phone-calculator percent: 50 + 10% means 50 + (10% of 50).
       if ((node.op === '+' || node.op === '-') && node.right.type === 'percent') {
         const share = left * evalNode(node.right.arg, mode, x) / 100;
-        return node.op === '+' ? left + share : left - share;
+        return node.op === '+' ? add(left, share) : subtract(left, share);
       }
       const right = evalNode(node.right, mode, x);
       switch (node.op) {
-        case '+': return left + right;
-        case '-': return left - right;
+        case '+': return add(left, right);
+        case '-': return subtract(left, right);
         case '*': return left * right;
         case '/':
           if (right === 0) throw new CalcError("Can't divide by zero");
           return left / right;
         case 'mod':
           if (right === 0) throw new CalcError("Can't divide by zero");
-          return left - right * Math.floor(left / right);
+          return subtract(left, right * Math.floor(left / right));
         case '^': return Math.pow(left, right);
         case 'yroot': return nthRoot(left, right);
         default: throw new CalcError(`Unknown operator ${node.op}`);
@@ -337,6 +337,42 @@ function evalNode(node, mode, x) {
     }
     default: throw new CalcError('Invalid expression');
   }
+}
+
+/**
+ * Drop the binary noise a sum picks up from its operands. 39053.21 and 39039.34 are each stored
+ * slightly off, and subtracting them leaves that error in plain view (13.870000000002619). The
+ * error is at most about one unit in the last place of the larger operand, so a sum within two
+ * of those units of its 15-digit rounding is snapped to it; anything further off is real digits.
+ * @param {number} sum
+ * @param {number} scale the larger operand's magnitude
+ * @returns {number}
+ */
+function roundSum(sum, scale) {
+  if (sum === 0 || !Number.isFinite(sum) || !Number.isFinite(scale)) return sum;
+  const digits = SIGNIFICANT_DIGITS - (Math.floor(Math.log10(scale)) - Math.floor(Math.log10(Math.abs(sum))));
+  const rounded = digits < 1 ? 0 : Number(sum.toPrecision(Math.min(digits, SIGNIFICANT_DIGITS))) + 0;
+  return Math.abs(sum - rounded) <= 2 * scale * Number.EPSILON ? rounded : sum;
+}
+
+/**
+ * a + b without the binary noise that appears when the result is much smaller than the operands.
+ * @param {number} a
+ * @param {number} b
+ * @returns {number}
+ */
+export function add(a, b) {
+  return roundSum(a + b, Math.max(Math.abs(a), Math.abs(b)));
+}
+
+/**
+ * a − b without the binary noise that appears when the result is much smaller than the operands.
+ * @param {number} a
+ * @param {number} b
+ * @returns {number}
+ */
+export function subtract(a, b) {
+  return add(a, -b);
 }
 
 /**

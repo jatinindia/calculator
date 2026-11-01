@@ -1,6 +1,6 @@
 // Everyday calculators (discount, GST, percent, tip, loan, dates). Pure functions + form definitions.
 
-import { formatNumber } from './calc.js';
+import { add, formatNumber, subtract } from './calc.js';
 
 /** @typedef {{ id: string, label: string, kind: 'number' | 'date' | 'count', suffix: string, presets: number[], placeholder: string }} ToolField */
 /** @typedef {{ label: string, value: string, primary: boolean }} ToolRow */
@@ -15,7 +15,7 @@ import { formatNumber } from './calc.js';
  */
 export function discount(price, percentOff) {
   const saved = (price * percentOff) / 100;
-  return { saved, final: price - saved };
+  return { saved, final: subtract(price, saved) };
 }
 
 /**
@@ -25,7 +25,7 @@ export function discount(price, percentOff) {
  */
 export function gstAdd(net, rate) {
   const tax = (net * rate) / 100;
-  return { net, tax, gross: net + tax };
+  return { net, tax, gross: add(net, tax) };
 }
 
 /**
@@ -35,7 +35,7 @@ export function gstAdd(net, rate) {
  */
 export function gstRemove(gross, rate) {
   const net = gross / (1 + rate / 100);
-  return { net, tax: gross - net, gross };
+  return { net, tax: subtract(gross, net), gross };
 }
 
 /**
@@ -73,7 +73,7 @@ export function percentChange(from, to) {
 export function tipSplit(bill, tipPercent, people) {
   if (!Number.isInteger(people) || people < 1) throw new Error(`Need a whole number of people, got ${people}`);
   const tip = (bill * tipPercent) / 100;
-  const total = bill + tip;
+  const total = add(bill, tip);
   return { tip, total, perPerson: total / people };
 }
 
@@ -88,7 +88,7 @@ export function loanEmi(principal, annualRatePercent, months) {
   const r = annualRatePercent / 1200;
   const emi = r === 0 ? principal / months : (principal * r * (1 + r) ** months) / ((1 + r) ** months - 1);
   const totalPayment = emi * months;
-  return { emi, totalPayment, totalInterest: totalPayment - principal };
+  return { emi, totalPayment, totalInterest: subtract(totalPayment, principal) };
 }
 
 /**
@@ -324,7 +324,7 @@ export const TOOLS = [
           const from = num(v.from);
           const to = num(v.to);
           if (from === null || to === null || from === 0) return null;
-          return [row('Difference', signed(to - from)), headline(to >= from ? 'Increase' : 'Decrease', `${signed(percentChange(from, to))}%`)];
+          return [row('Difference', signed(subtract(to, from))), headline(to >= from ? 'Increase' : 'Decrease', `${signed(percentChange(from, to))}%`)];
         },
       },
     ],
