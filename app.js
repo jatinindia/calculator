@@ -1067,6 +1067,7 @@ function renderTools(state, prev) {
   const structureChanged = prev === null || prev.tools.tool !== state.tools.tool
     || prev.tools.modes[tool.id] !== state.tools.modes[tool.id] || prev.mode !== state.mode;
   if (structureChanged) {
+    el.toolChips.querySelector('.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     el.toolModes.hidden = tool.modes.length < 2;
     el.toolModes.replaceChildren(...tool.modes.map((m) => {
       const btn = Object.assign(document.createElement('button'), { className: 'seg-btn', textContent: m.label });
@@ -1345,6 +1346,13 @@ function render(state, prev) {
 for (const btn of el.sci.querySelectorAll('[data-alt]')) {
   const b = /** @type {HTMLElement} */ (btn);
   b.dataset.label = b.textContent ?? '';
+}
+
+for (const tool of TOOLS) {
+  const chip = Object.assign(document.createElement('button'), { className: 'chip', textContent: tool.name });
+  chip.dataset.tool = tool.id;
+  chip.setAttribute('role', 'tab');
+  el.toolChips.append(chip);
 }
 
 let state = loadState();
@@ -1681,18 +1689,11 @@ if (needsRates(state)) void refreshRates(false);
 
 // ---------- Tools wiring ----------
 
-for (const tool of TOOLS) {
-  const chip = Object.assign(document.createElement('button'), { className: 'chip', textContent: tool.name });
-  chip.dataset.tool = tool.id;
-  chip.setAttribute('role', 'tab');
-  el.toolChips.append(chip);
-}
 el.toolChips.addEventListener('click', (event) => {
   const chip = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (event.target).closest('.chip'));
   if (!chip) return;
   const tool = /** @type {string} */ (chip.dataset.tool);
   dispatch((s) => (s.tools.tool === tool ? s : { ...s, tools: { ...s.tools, tool } }));
-  chip.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
 });
 el.toolModes.addEventListener('click', (event) => {
   const btn = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (event.target).closest('.seg-btn'));

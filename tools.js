@@ -1,4 +1,4 @@
-// Everyday calculators (discount, GST, percent, tip, loan, dates). Pure functions + form definitions.
+// Everyday calculators (discount, GST, percent, tip, loan, interest, savings, dates). Pure functions + form definitions.
 
 import { add, formatNumber, subtract } from './calc.js';
 
@@ -89,6 +89,100 @@ export function loanEmi(principal, annualRatePercent, months) {
   const emi = r === 0 ? principal / months : (principal * r * (1 + r) ** months) / ((1 + r) ** months - 1);
   const totalPayment = emi * months;
   return { emi, totalPayment, totalInterest: subtract(totalPayment, principal) };
+}
+
+/**
+ * @param {number} principal
+ * @param {number} annualRatePercent
+ * @param {number} years
+ */
+export function simpleInterest(principal, annualRatePercent, years) {
+  const interest = (principal * annualRatePercent * years) / 100;
+  return { interest, total: add(principal, interest) };
+}
+
+/**
+ * @param {number} principal
+ * @param {number} annualRatePercent
+ * @param {number} years
+ * @param {number} timesPerYear how often interest is added
+ */
+export function compoundInterest(principal, annualRatePercent, years, timesPerYear) {
+  if (timesPerYear < 1) throw new Error(`Interest must compound at least once a year, got ${timesPerYear}`);
+  const perPeriod = 1 + annualRatePercent / (100 * timesPerYear);
+  const total = principal * perPeriod ** (timesPerYear * years);
+  return { total, interest: subtract(total, principal), effectiveRate: (perPeriod ** timesPerYear - 1) * 100 };
+}
+
+/**
+ * Yearly rate that turns `start` into `end`. The compound rate is the CAGR.
+ * @param {number} start
+ * @param {number} end
+ * @param {number} years
+ */
+export function growthRate(start, end, years) {
+  if (start <= 0 || end <= 0 || years <= 0) throw new Error(`Amounts and years must be above zero, got ${start}, ${end}, ${years}`);
+  const ratio = end / start;
+  return { compoundRate: (ratio ** (1 / years) - 1) * 100, simpleRate: ((ratio - 1) * 100) / years, growth: (ratio - 1) * 100 };
+}
+
+/**
+ * Years for `start` to reach `target`.
+ * @param {number} start
+ * @param {number} target
+ * @param {number} annualRatePercent
+ * @param {number} timesPerYear how often interest is added
+ */
+export function timeToReach(start, target, annualRatePercent, timesPerYear) {
+  if (start <= 0 || annualRatePercent <= 0 || timesPerYear < 1) {
+    throw new Error(`Amount, rate and compounding must be above zero, got ${start}, ${annualRatePercent}, ${timesPerYear}`);
+  }
+  if (target <= start) throw new Error(`Target must be above the starting amount, got ${target} from ${start}`);
+  const ratio = target / start;
+  return {
+    compoundYears: Math.log(ratio) / (timesPerYear * Math.log(1 + annualRatePercent / (100 * timesPerYear))),
+    simpleYears: ((ratio - 1) * 100) / annualRatePercent,
+  };
+}
+
+/**
+ * Value of equal deposits made at the start of each period.
+ * @param {number} deposit
+ * @param {number} growth multiplier per period (1.01 for 1%)
+ * @param {number} periods
+ */
+function depositsValue(deposit, growth, periods) {
+  return growth === 1 ? deposit * periods : (deposit * growth * (growth ** periods - 1)) / (growth - 1);
+}
+
+/**
+ * @param {number} maturity
+ * @param {number} monthly
+ * @param {number} months
+ */
+function savingsResult(maturity, monthly, months) {
+  const invested = monthly * months;
+  return { maturity, invested, interest: subtract(maturity, invested) };
+}
+
+/**
+ * SIP: returns compound monthly and each deposit goes in at the start of the month.
+ * @param {number} monthly
+ * @param {number} annualRatePercent
+ * @param {number} months
+ */
+export function sipMaturity(monthly, annualRatePercent, months) {
+  return savingsResult(depositsValue(monthly, 1 + annualRatePercent / 1200, months), monthly, months);
+}
+
+/**
+ * Recurring deposit: Indian banks compound quarterly, so each month grows by a third of a quarter.
+ * @param {number} monthly
+ * @param {number} annualRatePercent
+ * @param {number} months
+ */
+export function rdMaturity(monthly, annualRatePercent, months) {
+  return savingsResult(depositsValue(monthly, (1 + annualRatePercent / 400) ** (1 / 3), months), monthly, months);
 }
 
 /**
@@ -254,6 +348,41 @@ function betweenRows(fromIso, toIso) {
   ];
 }
 
+const INTEREST_RATE_FIELD = numberField('rate', 'Interest rate', '% / yr', []);
+const YEARS_FIELD = numberField('years', 'Time', 'years', [1, 3, 5, 10, 20]);
+const TIMES_FIELD = numberField('times', 'Compounded', 'times / yr', [1, 2, 4, 12]);
+
+/**
+ * @param {number} years
+ * @returns {string} e.g. "7 years, 3 months"
+ */
+function durationText(years) {
+  const months = Math.round(years * 12);
+  if (months === 0) return 'Under a month';
+  const parts = [[Math.floor(months / 12), 'year'], [months % 12, 'month']]
+    .filter(([n]) => n !== 0)
+    .map(([n, word]) => plural(/** @type {number} */ (n), /** @type {string} */ (word)));
+  return parts.join(', ');
+}
+
+/**
+ * @param {Readonly<Record<string, string>>} v
+ * @param {(monthly: number, rate: number, months: number) => { maturity: number, invested: number, interest: number }} grow
+ * @returns {ToolRow[] | null}
+ */
+function savingsRows(v, grow) {
+  const monthly = num(v.monthly);
+  const rate = num(v.rate);
+  const years = num(v.years);
+  const months = years === null ? 0 : Math.round(years * 12);
+  if (monthly === null || rate === null || rate < 0 || months < 1) return null;
+  const r = grow(monthly, rate, months);
+  if (!Number.isFinite(r.maturity)) return null;
+  return [headline('Maturity value', formatMoney(r.maturity)), row('Total deposited', formatMoney(r.invested)), row('Interest earned', formatMoney(r.interest))];
+}
+
+const SAVINGS_FIELDS = [numberField('monthly', 'Monthly deposit', '', []), INTEREST_RATE_FIELD, YEARS_FIELD];
+
 /** @type {readonly Tool[]} */
 export const TOOLS = [
   {
@@ -370,6 +499,79 @@ export const TOOLS = [
         ];
       },
     }],
+  },
+  {
+    id: 'interest', name: 'Interest', modes: [
+      {
+        id: 'simple', label: 'Simple',
+        fields: [numberField('amount', 'Amount', '', []), INTEREST_RATE_FIELD, YEARS_FIELD],
+        compute: (v) => {
+          const amount = num(v.amount);
+          const rate = num(v.rate);
+          const years = num(v.years);
+          if (amount === null || rate === null || years === null || rate < 0 || years < 0) return null;
+          const r = simpleInterest(amount, rate, years);
+          if (!Number.isFinite(r.total)) return null;
+          return [headline('Total amount', formatMoney(r.total)), row('Interest', formatMoney(r.interest))];
+        },
+      },
+      {
+        id: 'compound', label: 'Compound',
+        fields: [numberField('amount', 'Amount', '', []), INTEREST_RATE_FIELD, YEARS_FIELD, TIMES_FIELD],
+        compute: (v) => {
+          const amount = num(v.amount);
+          const rate = num(v.rate);
+          const years = num(v.years);
+          const times = num(v.times);
+          if (amount === null || rate === null || years === null || times === null || rate < 0 || years < 0 || times < 1) return null;
+          const r = compoundInterest(amount, rate, years, times);
+          if (!Number.isFinite(r.total)) return null;
+          return [
+            headline('Total amount', formatMoney(r.total)),
+            row('Interest', formatMoney(r.interest)),
+            row('Effective yearly rate', `${formatMoney(r.effectiveRate)}%`),
+          ];
+        },
+      },
+      {
+        id: 'rate', label: 'Find rate',
+        fields: [numberField('amount', 'Starting amount', '', []), numberField('target', 'Final amount', '', []), YEARS_FIELD],
+        compute: (v) => {
+          const amount = num(v.amount);
+          const target = num(v.target);
+          const years = num(v.years);
+          if (amount === null || target === null || years === null || amount <= 0 || target <= 0 || years <= 0) return null;
+          const r = growthRate(amount, target, years);
+          if (!Number.isFinite(r.compoundRate) || !Number.isFinite(r.growth)) return null;
+          return [
+            headline('Compound rate (CAGR)', `${formatMoney(r.compoundRate)}%`),
+            row('Simple rate', `${formatMoney(r.simpleRate)}%`),
+            row('Total growth', `${formatMoney(r.growth)}%`),
+          ];
+        },
+      },
+      {
+        id: 'time', label: 'Find time',
+        fields: [numberField('amount', 'Starting amount', '', []), numberField('target', 'Target amount', '', []), INTEREST_RATE_FIELD, TIMES_FIELD],
+        compute: (v) => {
+          const amount = num(v.amount);
+          const target = num(v.target);
+          const rate = num(v.rate);
+          const times = num(v.times);
+          if (amount === null || target === null || rate === null || times === null) return null;
+          if (amount <= 0 || target <= amount || rate <= 0 || times < 1) return null;
+          const r = timeToReach(amount, target, rate, times);
+          if (!Number.isFinite(r.compoundYears) || !Number.isFinite(r.simpleYears)) return null;
+          return [headline('With compound interest', durationText(r.compoundYears)), row('With simple interest', durationText(r.simpleYears))];
+        },
+      },
+    ],
+  },
+  {
+    id: 'savings', name: 'Savings', modes: [
+      { id: 'sip', label: 'SIP', fields: SAVINGS_FIELDS, compute: (v) => savingsRows(v, sipMaturity) },
+      { id: 'rd', label: 'RD', fields: SAVINGS_FIELDS, compute: (v) => savingsRows(v, rdMaturity) },
+    ],
   },
   {
     id: 'date', name: 'Date', modes: [

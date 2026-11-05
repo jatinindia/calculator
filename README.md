@@ -80,6 +80,8 @@ The values come from published conversion tables, mainly Wikipedia's [Bigha](htt
 | Percent | X% of Y, X is what % of Y, % change |
 | Tip & split | Tip, total and each person's share |
 | Loan EMI | Monthly EMI, total interest and total payment |
+| Interest | Simple and compound interest, the rate needed to reach an amount (including CAGR), and the time needed to reach a target |
+| Savings | Maturity value of a monthly SIP or RD. SIP compounds monthly, with deposits at the start of each month; RD compounds quarterly, as Indian banks usually do. Tax isn't included, and a bank's own figure can differ slightly |
 | Date | Days between two dates, or a date plus or minus N days |
 
 Your entries are remembered. Tap the big result to copy it.
@@ -142,7 +144,7 @@ To try it on a phone on the same Wi-Fi, run `npm start` and open `http://<your-c
 | `editor.js` | What each key does to the expression, including editing at a cursor |
 | `history.js` | History search and labels |
 | `convert.js` | Unit definitions, currency maths, exchange-rate response checks |
-| `tools.js` | Discount, GST, percent, tip, EMI and date maths, plus the Tools form definitions |
+| `tools.js` | Discount, GST, percent, tip, EMI, interest, savings and date maths, plus the Tools form definitions |
 | `graph.js` | Zeros, intersections and grid spacing |
 | `graph-view.js` | Graph canvas: drawing, pan, pinch-zoom, tap-to-trace |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Offline support and home-screen install |
